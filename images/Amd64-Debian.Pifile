@@ -1,0 +1,45 @@
+FROM https://cdimage.debian.org/images/cloud/bookworm/20251112-2294/debian-12-genericcloud-amd64-20251112-2294.tar.xz 1
+
+PUMP 500M
+
+RUN apt-get update
+RUN apt-get install -y cowsay
+
+# Add /usr/games to PATH for all users
+RUN bash -c 'echo "export PATH=\$PATH:/usr/games" >> /etc/profile.d/games-path.sh'
+
+# Install standard kernel for physical hardware (cloud kernel lacks many drivers)
+RUN apt-get install -y linux-image-amd64
+
+# Remove cloud-init and cloud kernel
+RUN apt-get purge -y cloud-init cloud-initramfs-growroot cloud-guest-utils linux-image-*-cloud-amd64 || true
+RUN rm -rf /etc/cloud /var/lib/cloud
+
+# Set root password (change 'debian' to your preferred password)
+RUN bash -c 'echo "root:debian" | chpasswd'
+
+# Configure network - DHCP on all ethernet interfaces
+RUN bash -c 'cat > /etc/systemd/network/20-wired.network << EOF
+[Match]
+Name=en*
+
+[Network]
+DHCP=yes
+EOF'
+RUN systemctl enable systemd-networkd systemd-resolved
+
+# Console
+RUN systemctl enable getty@tty1
+RUN sed -i 's/console=ttyS0[^ ]*//g' /etc/default/grub
+RUN sed -i 's/GRUB_CMDLINE_LINUX="/GRUB_CMDLINE_LINUX="console=tty0 /' /etc/default/grub
+
+# Label the *image* root partition and switch root selector to LABEL
+# Only modify the root partition line in fstab (starts with PARTUUID or UUID and mounts to /)
+RUN bash -c 'ROOTDEV="$(findmnt -n -o SOURCE /)" && e2label "$ROOTDEV" root'
+RUN bash -c 'sed -i "/[[:space:]]\/[[:space:]]/s|^PARTUUID=[^[:space:]]*|LABEL=root|" /etc/fstab'
+
+RUN update-initramfs -u
+RUN update-grub
+
+# Fix grub.cfg to use LABEL=root instead of PARTUUID (update-grub ignores GRUB_DEVICE)
+RUN bash -c 'sed -i "s|root=PARTUUID=[^ ]*|root=LABEL=root|g" /boot/grub/grub.cfg'

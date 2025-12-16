@@ -1,0 +1,19 @@
+name: Build Images Test
+
+on:
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  build-amd64:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Test AMD64 image
+        uses: aniongithub/pimod@0.31
+        with:
+          pifile: images/Amd64-Debian.Pifile
+          resolv: host
