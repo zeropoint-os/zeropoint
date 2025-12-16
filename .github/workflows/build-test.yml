@@ -13,7 +13,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Test AMD64 image
-        uses: aniongithub/pimod@0.3
+        uses: aniongithub/pimod@0.31
         with:
           pifile: images/Amd64-Debian.Pifile
-          args: --resolv host
+          resolv: host
