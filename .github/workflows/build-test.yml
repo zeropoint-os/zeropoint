@@ -16,3 +16,4 @@ jobs:
         uses: aniongithub/pimod@0.3
         with:
           pifile: images/Amd64-Debian.Pifile
+          args: --resolv host
