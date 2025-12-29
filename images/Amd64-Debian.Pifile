@@ -3,10 +3,6 @@ FROM https://cdimage.debian.org/images/cloud/bookworm/20251112-2294/debian-12-ge
 PUMP 500M
 
 RUN apt-get update
-RUN apt-get install -y cowsay
-
-# Add /usr/games to PATH for all users
-RUN bash -c 'echo "export PATH=\$PATH:/usr/games" >> /etc/profile.d/games-path.sh'
 
 # Install standard kernel for physical hardware (cloud kernel lacks many drivers)
 RUN apt-get install -y linux-image-amd64
@@ -14,6 +10,10 @@ RUN apt-get install -y linux-image-amd64
 # Remove cloud-init and cloud kernel
 RUN apt-get purge -y cloud-init cloud-initramfs-growroot cloud-guest-utils linux-image-*-cloud-amd64 || true
 RUN rm -rf /etc/cloud /var/lib/cloud
+
+# Disable SSH (appliance OS, can be enabled manually if needed)
+RUN systemctl disable ssh.service || true
+RUN systemctl mask ssh.service || true
 
 # Set root password (change 'debian' to your preferred password)
 RUN bash -c 'echo "root:debian" | chpasswd'
@@ -27,6 +27,7 @@ Name=en*
 DHCP=yes
 EOF'
 RUN systemctl enable systemd-networkd systemd-resolved
+RUN systemctl disable systemd-networkd-wait-online.service
 
 # Console
 RUN systemctl enable getty@tty1
@@ -38,8 +39,245 @@ RUN sed -i 's/GRUB_CMDLINE_LINUX="/GRUB_CMDLINE_LINUX="console=tty0 /' /etc/defa
 RUN bash -c 'ROOTDEV="$(findmnt -n -o SOURCE /)" && e2label "$ROOTDEV" root'
 RUN bash -c 'sed -i "/[[:space:]]\/[[:space:]]/s|^PARTUUID=[^[:space:]]*|LABEL=root|" /etc/fstab'
 
-RUN update-initramfs -u
+RUN update-initramfs -u -k all
 RUN update-grub
 
 # Fix grub.cfg to use LABEL=root instead of PARTUUID (update-grub ignores GRUB_DEVICE)
 RUN bash -c 'sed -i "s|root=PARTUUID=[^ ]*|root=LABEL=root|g" /boot/grub/grub.cfg'
+
+# Set random memorable hostname
+RUN bash -c 'ADJECTIVES=(quiet brave swift mighty clever gentle bright calm noble proud); \
+NOUNS=(river forest mountain ocean valley breeze shadow meadow summit ember); \
+ADJ=${ADJECTIVES[$RANDOM % ${#ADJECTIVES[@]}]}; \
+NOUN=${NOUNS[$RANDOM % ${#NOUNS[@]}]}; \
+HOSTNAME="zeropoint-$ADJ-$NOUN"; \
+echo "$HOSTNAME" > /etc/hostname; \
+sed -i "s/127.0.1.1.*/127.0.1.1\t$HOSTNAME/" /etc/hosts'
+
+RUN apt-get install -y avahi-daemon curl nano git ca-certificates gnupg
+
+# Install Docker
+RUN bash -c 'install -m 0755 -d /etc/apt/keyrings'
+RUN bash -c 'curl -fsSL https://download.docker.com/linux/debian/gpg -o /etc/apt/keyrings/docker.asc'
+RUN bash -c 'chmod a+r /etc/apt/keyrings/docker.asc'
+RUN bash -c 'echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/debian $(. /etc/os-release && echo "$VERSION_CODENAME") stable" > /etc/apt/sources.list.d/docker.list'
+RUN apt-get update
+RUN apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+
+# Enable Docker service
+RUN systemctl enable docker
+
+# Install Terraform
+RUN bash -c 'curl -fsSL https://apt.releases.hashicorp.com/gpg -o /etc/apt/keyrings/hashicorp.asc'
+RUN bash -c 'chmod a+r /etc/apt/keyrings/hashicorp.asc'
+RUN bash -c 'echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/hashicorp.asc] https://apt.releases.hashicorp.com $(. /etc/os-release && echo "$VERSION_CODENAME") main" > /etc/apt/sources.list.d/hashicorp.list'
+RUN apt-get update
+RUN apt-get install -y terraform
+
+# Set nano as default editor (uses sensible-editor alternative)
+RUN bash -c 'echo "export EDITOR=nano" >> /etc/profile.d/editor.sh'
+RUN bash -c 'echo "export VISUAL=nano" >> /etc/profile.d/editor.sh'
+
+# Download and install zeropoint-agent
+RUN bash -c 'curl -L https://github.com/zeropoint-os/zeropoint-agent/releases/latest/download/zeropoint-agent-linux-amd64.tar.gz -o /tmp/zeropoint-agent.tar.gz'
+RUN bash -c 'tar -xzf /tmp/zeropoint-agent.tar.gz -C /usr/local/bin/'
+RUN bash -c 'chmod +x /usr/local/bin/zeropoint-agent'
+RUN bash -c 'rm /tmp/zeropoint-agent.tar.gz'
+
+# Create first-boot storage setup script
+# TODO: Replace with mergerfs pooling solution for multi-disk support
+RUN bash -c 'cat > /usr/local/bin/zeropoint-setup-storage.sh << '\''SCRIPT'\''
+#!/bin/bash
+set -e
+
+STORAGE_ROOT="/var/lib/zeropoint"
+MARKER_FILE="/var/lib/zeropoint/.storage-initialized"
+
+# Exit if already initialized
+if [ -f "$MARKER_FILE" ]; then
+    echo "Storage already initialized, skipping..."
+    exit 0
+fi
+
+echo "=== Zeropoint Storage Setup ==="
+echo "Searching for available storage devices..."
+
+# Get the boot device (the device mounted at /)
+BOOT_DEVICE=$(findmnt -n -o SOURCE / | sed '\''s/[0-9]*$//'\'' | sed '\''s|/dev/||'\'')
+echo "Boot device: $BOOT_DEVICE (will be excluded)"
+
+# Find all non-removable disks that are not the boot device and have no partitions
+AVAILABLE_DISKS=$(lsblk -nd -o NAME,TYPE,RM,SIZE --bytes | \
+    awk '\''$2=="disk" && $3==0'\'' | \
+    grep -v "^${BOOT_DEVICE}" | \
+    awk '\''{print $1}'\'' || true)
+
+if [ -z "$AVAILABLE_DISKS" ]; then
+    echo "WARNING: No additional storage devices found!"
+    echo "Creating storage directory on boot device (limited space)"
+    mkdir -p "$STORAGE_ROOT"
+    echo "APP_STORAGE_ROOT=$STORAGE_ROOT" >> /etc/environment
+    
+    # Configure Docker to use boot device storage (fallback)
+    mkdir -p /etc/docker
+    cat > /etc/docker/daemon.json << DOCKEREOF
+{
+  "data-root": "$STORAGE_ROOT/docker"
+}
+DOCKEREOF
+    
+    # Configure containerd to use boot device storage (fallback)
+    mkdir -p /etc/containerd
+    cat > /etc/containerd/config.toml << CONTAINERDEOF
+version = 2
+root = "$STORAGE_ROOT/containerd"
+state = "/run/containerd"
+CONTAINERDEOF
+    
+    touch "$MARKER_FILE"
+    exit 0
+fi
+
+echo "Available disks:"
+echo "$AVAILABLE_DISKS"
+
+# Find the largest disk (Option A: single disk strategy)
+# TODO: When switching to mergerfs, iterate over all disks instead
+LARGEST_DISK=$(echo "$AVAILABLE_DISKS" | while read disk; do
+    SIZE=$(lsblk -bdn -o SIZE /dev/$disk)
+    echo "$SIZE $disk"
+done | sort -rn | head -1 | awk '\''{print $2}'\'')
+
+if [ -z "$LARGEST_DISK" ]; then
+    echo "ERROR: Could not determine largest disk"
+    exit 1
+fi
+
+DISK_SIZE=$(lsblk -bdn -o SIZE /dev/$LARGEST_DISK | awk '\''{printf "%.2f GB", $1/1024/1024/1024}'\'')
+echo "Selected largest disk: /dev/$LARGEST_DISK ($DISK_SIZE)"
+
+# Check if disk has actual partitions (count lines with 'part' type)
+PART_COUNT=$(lsblk -n -o TYPE /dev/$LARGEST_DISK | grep -c '^part$' || true)
+if [ "$PART_COUNT" -gt 0 ]; then
+    echo "WARNING: /dev/$LARGEST_DISK has $PART_COUNT existing partitions, skipping format for safety"
+    echo "Creating storage directory on boot device (limited space)"
+    mkdir -p "$STORAGE_ROOT"
+    echo "APP_STORAGE_ROOT=$STORAGE_ROOT" >> /etc/environment
+    
+    # Configure Docker to use boot device storage (fallback)
+    mkdir -p /etc/docker
+    cat > /etc/docker/daemon.json << DOCKEREOF
+{
+  "data-root": "$STORAGE_ROOT/docker"
+}
+DOCKEREOF
+    
+    # Configure containerd to use boot device storage (fallback)
+    mkdir -p /etc/containerd
+    cat > /etc/containerd/config.toml << CONTAINERDEOF
+version = 2
+root = "$STORAGE_ROOT/containerd"
+state = "/run/containerd"
+CONTAINERDEOF
+    
+    touch "$MARKER_FILE"
+    exit 0
+fi
+
+# Format and mount the disk
+echo "Formatting /dev/$LARGEST_DISK as ext4..."
+mkfs.ext4 -F -L zeropoint-storage /dev/$LARGEST_DISK
+
+echo "Creating mount point at $STORAGE_ROOT..."
+mkdir -p "$STORAGE_ROOT"
+
+echo "Mounting /dev/$LARGEST_DISK to $STORAGE_ROOT..."
+mount /dev/$LARGEST_DISK "$STORAGE_ROOT"
+
+# Add to fstab for persistence
+echo "Adding mount to /etc/fstab..."
+DISK_UUID=$(blkid -s UUID -o value /dev/$LARGEST_DISK)
+echo "UUID=$DISK_UUID $STORAGE_ROOT ext4 defaults,nofail 0 2" >> /etc/fstab
+
+# Set environment variable
+echo "APP_STORAGE_ROOT=$STORAGE_ROOT" >> /etc/environment
+
+# Configure Docker to use the HDD storage
+echo "Configuring Docker data-root..."
+mkdir -p /etc/docker
+cat > /etc/docker/daemon.json << DOCKEREOF
+{
+  "data-root": "$STORAGE_ROOT/docker"
+}
+DOCKEREOF
+
+# Configure containerd to use the HDD storage
+echo "Configuring containerd root..."
+mkdir -p /etc/containerd
+cat > /etc/containerd/config.toml << CONTAINERDEOF
+version = 2
+root = "$STORAGE_ROOT/containerd"
+state = "/run/containerd"
+CONTAINERDEOF
+
+# Create marker file
+mkdir -p /var/lib/zeropoint
+touch "$MARKER_FILE"
+
+echo "=== Storage setup complete ==="
+echo "Storage root: $STORAGE_ROOT"
+echo "Docker data-root: $STORAGE_ROOT/docker"
+echo "Disk: /dev/$LARGEST_DISK ($DISK_SIZE)"
+
+# Ensure Docker picks up the new configuration on first start
+# Since this service runs Before=docker.service, Docker will read the config when it starts
+SCRIPT'
+RUN chmod +x /usr/local/bin/zeropoint-setup-storage.sh
+
+# Create systemd service for first-boot storage setup
+RUN bash -c 'cat > /etc/systemd/system/zeropoint-setup-storage.service << EOF
+[Unit]
+Description=Zeropoint First-Boot Storage Setup
+DefaultDependencies=no
+After=local-fs.target
+Before=docker.service containerd.service zeropoint-agent.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/zeropoint-setup-storage.sh
+RemainAfterExit=yes
+StandardOutput=journal+console
+
+[Install]
+WantedBy=multi-user.target
+EOF'
+
+# Enable first-boot storage setup service
+RUN systemctl enable zeropoint-setup-storage.service
+
+# Create systemd service for zeropoint-agent
+RUN bash -c 'cat > /etc/systemd/system/zeropoint-agent.service << EOF
+[Unit]
+Description=Zeropoint Agent
+After=network-online.target docker.service avahi-daemon.service zeropoint-setup-storage.service
+Wants=network-online.target
+Requires=docker.service avahi-daemon.service zeropoint-setup-storage.service
+
+[Service]
+Type=simple
+Environment="PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+EnvironmentFile=-/etc/environment
+ExecStart=/usr/local/bin/zeropoint-agent
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
+EOF'
+
+# Enable avahi-daemon and zeropoint-agent services
+RUN systemctl enable avahi-daemon
+RUN systemctl enable zeropoint-agent
+
+# Remove apt lists 
+RUN rm -rf /var/lib/apt/lists/*
