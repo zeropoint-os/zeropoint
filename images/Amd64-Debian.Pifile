@@ -84,6 +84,92 @@ RUN bash -c 'tar -xzf /tmp/zeropoint-agent.tar.gz -C /usr/local/bin/'
 RUN bash -c 'chmod +x /usr/local/bin/zeropoint-agent'
 RUN bash -c 'rm /tmp/zeropoint-agent.tar.gz'
 
+# Create zeropoint-agent update script
+RUN bash -c 'cat > /usr/local/bin/zeropoint-update-agent.sh << '\''UPDATESCRIPT'\''
+#!/bin/bash
+
+echo "=== Zeropoint Agent Update Check ==="
+
+CURRENT_VERSION=$(/usr/local/bin/zeropoint-agent --version 2>/dev/null || echo "unknown")
+echo "Current version: $CURRENT_VERSION"
+
+echo "Checking for latest release..."
+DOWNLOAD_URL="https://github.com/zeropoint-os/zeropoint-agent/releases/latest/download/zeropoint-agent-linux-amd64.tar.gz"
+
+# Download to temp location
+echo "Downloading latest agent..."
+if ! curl -fsSL "$DOWNLOAD_URL" -o /tmp/zeropoint-agent-new.tar.gz; then
+    echo "ERROR: Failed to download agent update"
+    rm -f /tmp/zeropoint-agent-new.tar.gz
+    exit 0  # Non-fatal, continue boot
+fi
+
+# Verify it'\''s a valid gzip file
+if ! file /tmp/zeropoint-agent-new.tar.gz | grep -q "gzip compressed"; then
+    echo "ERROR: Downloaded file is not a valid gzip archive"
+    cat /tmp/zeropoint-agent-new.tar.gz
+    rm -f /tmp/zeropoint-agent-new.tar.gz
+    exit 0  # Non-fatal, continue boot
+fi
+
+# Extract to temp location
+echo "Extracting agent binary..."
+if ! tar -xzf /tmp/zeropoint-agent-new.tar.gz -C /tmp/; then
+    echo "ERROR: Failed to extract agent archive"
+    rm -f /tmp/zeropoint-agent-new.tar.gz
+    exit 0  # Non-fatal, continue boot
+fi
+
+chmod +x /tmp/zeropoint-agent
+
+# Check new version
+NEW_VERSION=$(/tmp/zeropoint-agent --version 2>/dev/null || echo "unknown")
+echo "Latest version: $NEW_VERSION"
+
+if [ "$CURRENT_VERSION" = "$NEW_VERSION" ]; then
+    echo "Already running latest version, no update needed"
+    rm -f /tmp/zeropoint-agent /tmp/zeropoint-agent-new.tar.gz
+    exit 0
+fi
+
+echo "Updating agent from $CURRENT_VERSION to $NEW_VERSION..."
+
+# Stop the agent service if running
+systemctl stop zeropoint-agent.service || true
+
+# Replace binary
+mv /tmp/zeropoint-agent /usr/local/bin/zeropoint-agent
+chmod +x /usr/local/bin/zeropoint-agent
+
+# Cleanup
+rm -f /tmp/zeropoint-agent-new.tar.gz
+
+echo "=== Agent updated successfully ==="
+echo "New version: $NEW_VERSION"
+UPDATESCRIPT'
+RUN chmod +x /usr/local/bin/zeropoint-update-agent.sh
+
+# Create systemd service for agent updates on boot
+RUN bash -c 'cat > /etc/systemd/system/zeropoint-update-agent.service << EOF
+[Unit]
+Description=Zeropoint Agent Update Check
+After=network-online.target
+Before=zeropoint-agent.service
+Requires=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/zeropoint-update-agent.sh
+RemainAfterExit=yes
+StandardOutput=journal+console
+
+[Install]
+WantedBy=multi-user.target
+EOF'
+
+# Enable agent update service
+RUN systemctl enable zeropoint-update-agent.service
+
 # Create first-boot storage setup script
 # TODO: Replace with mergerfs pooling solution for multi-disk support
 RUN bash -c 'cat > /usr/local/bin/zeropoint-setup-storage.sh << '\''SCRIPT'\''
@@ -259,7 +345,7 @@ RUN systemctl enable zeropoint-setup-storage.service
 RUN bash -c 'cat > /etc/systemd/system/zeropoint-agent.service << EOF
 [Unit]
 Description=Zeropoint Agent
-After=network-online.target docker.service avahi-daemon.service zeropoint-setup-storage.service
+After=network-online.target docker.service avahi-daemon.service zeropoint-setup-storage.service zeropoint-update-agent.service
 Wants=network-online.target
 Requires=docker.service avahi-daemon.service zeropoint-setup-storage.service
 
