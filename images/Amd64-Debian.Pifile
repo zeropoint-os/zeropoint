@@ -11,9 +11,17 @@ RUN apt-get install -y linux-image-amd64
 RUN apt-get purge -y cloud-init cloud-initramfs-growroot cloud-guest-utils linux-image-*-cloud-amd64 || true
 RUN rm -rf /etc/cloud /var/lib/cloud
 
-# Disable SSH (appliance OS, can be enabled manually if needed)
-RUN systemctl disable ssh.service || true
-RUN systemctl mask ssh.service || true
+# SSH Configuration
+# TODO: Disable SSH when image is stable (uncomment lines below)
+# RUN systemctl disable ssh.service || true
+# RUN systemctl mask ssh.service || true
+RUN apt-get install -y openssh-server
+RUN ssh-keygen -A
+RUN bash -c 'mkdir -p /etc/ssh/sshd_config.d && cat > /etc/ssh/sshd_config.d/zeropoint.conf << EOF
+PermitRootLogin yes
+PasswordAuthentication yes
+EOF'
+RUN systemctl enable ssh.service
 
 # Set root password (change 'debian' to your preferred password)
 RUN bash -c 'echo "root:debian" | chpasswd'
@@ -202,7 +210,7 @@ if [ -z "$AVAILABLE_DISKS" ]; then
     echo "WARNING: No additional storage devices found!"
     echo "Creating storage directory on boot device (limited space)"
     mkdir -p "$STORAGE_ROOT"
-    echo "APP_STORAGE_ROOT=$STORAGE_ROOT" >> /etc/environment
+    echo "APP_STORAGE_ROOT=$STORAGE_ROOT" > /etc/zeropoint.env
     
     # Configure Docker to use boot device storage (fallback)
     mkdir -p /etc/docker
@@ -248,7 +256,7 @@ if [ "$PART_COUNT" -gt 0 ]; then
     echo "WARNING: /dev/$LARGEST_DISK has $PART_COUNT existing partitions, skipping format for safety"
     echo "Creating storage directory on boot device (limited space)"
     mkdir -p "$STORAGE_ROOT"
-    echo "APP_STORAGE_ROOT=$STORAGE_ROOT" >> /etc/environment
+    echo "APP_STORAGE_ROOT=$STORAGE_ROOT" > /etc/zeropoint.env
     
     # Configure Docker to use boot device storage (fallback)
     mkdir -p /etc/docker
@@ -286,7 +294,7 @@ DISK_UUID=$(blkid -s UUID -o value /dev/$LARGEST_DISK)
 echo "UUID=$DISK_UUID $STORAGE_ROOT ext4 defaults,nofail 0 2" >> /etc/fstab
 
 # Set environment variable
-echo "APP_STORAGE_ROOT=$STORAGE_ROOT" >> /etc/environment
+echo "APP_STORAGE_ROOT=$STORAGE_ROOT" > /etc/zeropoint.env
 
 # Configure Docker to use the HDD storage
 echo "Configuring Docker data-root..."
@@ -353,6 +361,7 @@ Requires=docker.service avahi-daemon.service zeropoint-setup-storage.service
 Type=simple
 Environment="PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
 EnvironmentFile=-/etc/environment
+EnvironmentFile=-/etc/zeropoint.env
 ExecStart=/usr/local/bin/zeropoint-agent
 Restart=always
 RestartSec=10
