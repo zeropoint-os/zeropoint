@@ -1,0 +1,41 @@
+name: Build and Release Images
+
+on:
+  release:
+    types: [created]
+    branches:
+      - main
+
+jobs:
+  build-and-release:
+    runs-on: ubuntu-latest
+    if: github.event.release.target_commitish == 'main'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Build AMD64 image
+        uses: aniongithub/pimod@0.31
+        with:
+          pifile: images/Amd64-Debian.Pifile
+          resolv: host
+
+      - name: Compress image
+        run: |
+          IMAGE_FILE=$(ls *.img | head -n 1)
+          if [ -z "$IMAGE_FILE" ]; then
+            echo "No .img file found"
+            exit 1
+          fi
+          tar -czf "${IMAGE_FILE%.img}.tar.gz" "$IMAGE_FILE"
+          echo "IMAGE_ARCHIVE=${IMAGE_FILE%.img}.tar.gz" >> $GITHUB_ENV
+
+      - name: Upload to release
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ github.event.release.upload_url }}
+          asset_path: ${{ env.IMAGE_ARCHIVE }}
+          asset_name: ${{ env.IMAGE_ARCHIVE }}
+          asset_content_type: application/gzip

@@ -86,11 +86,11 @@ RUN apt-get install -y terraform
 RUN bash -c 'echo "export EDITOR=nano" >> /etc/profile.d/editor.sh'
 RUN bash -c 'echo "export VISUAL=nano" >> /etc/profile.d/editor.sh'
 
-# Download and install zeropoint-agent
-RUN bash -c 'curl -L https://github.com/zeropoint-os/zeropoint-agent/releases/latest/download/zeropoint-agent-linux-amd64.tar.gz -o /tmp/zeropoint-agent.tar.gz'
-RUN bash -c 'tar -xzf /tmp/zeropoint-agent.tar.gz -C /usr/local/bin/'
-RUN bash -c 'chmod +x /usr/local/bin/zeropoint-agent'
-RUN bash -c 'rm /tmp/zeropoint-agent.tar.gz'
+# Install zeropoint-agent
+# The binary should be prepared at .build/zeropoint-agent by the build script
+# See build-image.sh for the logic that handles USE_LOCAL_AGENT_BUILD
+INSTALL .build/zeropoint-agent /usr/local/bin/zeropoint-agent
+RUN chmod +x /usr/local/bin/zeropoint-agent
 
 # Create zeropoint-agent update script
 RUN bash -c 'cat > /usr/local/bin/zeropoint-update-agent.sh << '\''UPDATESCRIPT'\''
@@ -210,7 +210,7 @@ if [ -z "$AVAILABLE_DISKS" ]; then
     echo "WARNING: No additional storage devices found!"
     echo "Creating storage directory on boot device (limited space)"
     mkdir -p "$STORAGE_ROOT"
-    echo "APP_STORAGE_ROOT=$STORAGE_ROOT" > /etc/zeropoint.env
+    echo "MODULE_STORAGE_ROOT=$STORAGE_ROOT" > /etc/zeropoint.env
     
     # Configure Docker to use boot device storage (fallback)
     mkdir -p /etc/docker
@@ -256,7 +256,7 @@ if [ "$PART_COUNT" -gt 0 ]; then
     echo "WARNING: /dev/$LARGEST_DISK has $PART_COUNT existing partitions, skipping format for safety"
     echo "Creating storage directory on boot device (limited space)"
     mkdir -p "$STORAGE_ROOT"
-    echo "APP_STORAGE_ROOT=$STORAGE_ROOT" > /etc/zeropoint.env
+    echo "MODULE_STORAGE_ROOT=$STORAGE_ROOT" > /etc/zeropoint.env
     
     # Configure Docker to use boot device storage (fallback)
     mkdir -p /etc/docker
@@ -294,7 +294,7 @@ DISK_UUID=$(blkid -s UUID -o value /dev/$LARGEST_DISK)
 echo "UUID=$DISK_UUID $STORAGE_ROOT ext4 defaults,nofail 0 2" >> /etc/fstab
 
 # Set environment variable
-echo "APP_STORAGE_ROOT=$STORAGE_ROOT" > /etc/zeropoint.env
+echo "MODULE_STORAGE_ROOT=$STORAGE_ROOT" > /etc/zeropoint.env
 
 # Configure Docker to use the HDD storage
 echo "Configuring Docker data-root..."
