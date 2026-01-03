@@ -12,6 +12,15 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Download zeropoint-agent
+        run: |
+          mkdir -p .build
+          curl -fsSL "https://github.com/zeropoint-os/zeropoint-agent/releases/latest/download/zeropoint-agent-linux-amd64.tar.gz" -o .build/zeropoint-agent.tar.gz
+          tar -xzf .build/zeropoint-agent.tar.gz -C .build/
+          rm .build/zeropoint-agent.tar.gz
+          chmod +x .build/zeropoint-agent
+          .build/zeropoint-agent --version || echo "Agent ready"
+
       - name: Test AMD64 image
         uses: aniongithub/pimod@0.31
         with:
