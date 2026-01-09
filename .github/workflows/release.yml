@@ -31,6 +31,25 @@ jobs:
           pifile: images/Amd64-Debian.Pifile
           resolv: host
 
+      - name: Fix resolv.conf in image
+        run: |
+          IMAGE_FILE=$(find . -name "*.img" -type f | head -n 1)
+          if [ -n "$IMAGE_FILE" ]; then
+            # Mount the image and fix resolv.conf
+            sudo losetup -P /dev/loop10 "$IMAGE_FILE"
+            sudo mkdir -p /tmp/img_mount
+            sudo mount /dev/loop10p1 /tmp/img_mount
+            
+            # Replace resolv.conf with proper DNS servers
+            echo "nameserver 8.8.8.8" | sudo tee /tmp/img_mount/etc/resolv.conf
+            echo "nameserver 8.8.4.4" | sudo tee -a /tmp/img_mount/etc/resolv.conf
+            echo "nameserver 1.1.1.1" | sudo tee -a /tmp/img_mount/etc/resolv.conf
+            
+            sudo umount /tmp/img_mount
+            sudo losetup -d /dev/loop10
+            sudo rmdir /tmp/img_mount
+          fi
+
       - name: Compress image
         run: |
           IMAGE_FILE=$(find . -name "*.img" -type f | head -n 1)
