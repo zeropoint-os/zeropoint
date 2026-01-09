@@ -29,7 +29,6 @@ jobs:
         uses: aniongithub/pimod@0.31
         with:
           pifile: images/Amd64-Debian.Pifile
-          resolv: host
 
       - name: Compress image
         run: |
