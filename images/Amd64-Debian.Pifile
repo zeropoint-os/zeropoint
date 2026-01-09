@@ -53,9 +53,9 @@ RUN update-grub
 # Fix grub.cfg to use LABEL=root instead of PARTUUID (update-grub ignores GRUB_DEVICE)
 RUN bash -c 'sed -i "s|root=PARTUUID=[^ ]*|root=LABEL=root|g" /boot/grub/grub.cfg'
 
-# Set random memorable hostname
-RUN bash -c 'ADJECTIVES=(quiet brave swift mighty clever gentle bright calm noble proud); \
-NOUNS=(river forest mountain ocean valley breeze shadow meadow summit ember); \
+# Set random memorable hostname (0_o)
+RUN bash -c 'ADJECTIVES=(lantea praclarush proclarush dakara celestis sahal kheb velaneth norvaleth solkarush elenaris dracalon taloren asparush); \
+NOUNS=(taonas kaleth doran velas norin selan karoth lunas peron astra nareth luneth velon); \
 ADJ=${ADJECTIVES[$RANDOM % ${#ADJECTIVES[@]}]}; \
 NOUN=${NOUNS[$RANDOM % ${#NOUNS[@]}]}; \
 HOSTNAME="zeropoint-$ADJ-$NOUN"; \
