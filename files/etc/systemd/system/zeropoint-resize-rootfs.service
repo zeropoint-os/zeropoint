@@ -1,0 +1,21 @@
+[Unit]
+Description=Zeropoint First-Boot Root Filesystem Expansion
+Documentation=https://docs.zeropoint.example.com/boot-phases
+DefaultDependencies=no
+After=systemd-remount-fs.service
+Before=systemd-tmpfiles-setup.service
+Before=zeropoint-phase-utilities.target
+PartOf=zeropoint-phase-base.target
+ConditionPathExists=!/etc/zeropoint/.rootfs-resized
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/zeropoint-resize-rootfs.sh
+Environment=DEBIAN_FRONTEND=noninteractive
+StandardOutput=journal+console
+StandardError=journal+console
+TimeoutSec=300
+RemainAfterExit=yes
+
+[Install]
+WantedBy=zeropoint-phase-base.target

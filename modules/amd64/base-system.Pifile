@@ -1,8 +1,19 @@
 RUN apt-get update
 
+# Install essential partitioning tools for root filesystem expansion
+# growpart (from cloud-utils) is all we need - it's in the base image
+RUN export DEBIAN_FRONTEND=noninteractive && apt-get install -y cloud-utils && apt-get clean
+
 # Install standard kernel for physical hardware (cloud kernel lacks many drivers)
 RUN apt-get install -y linux-image-amd64
 
-# Remove cloud-init and cloud kernel
-RUN apt-get purge -y cloud-init cloud-initramfs-growroot cloud-guest-utils linux-image-*-cloud-amd64 || true
+# Remove cloud-init and cloud kernel (keep cloud-guest-utils for growpart)
+RUN apt-get purge -y cloud-init cloud-initramfs-growroot linux-image-*-cloud-amd64 || true
 RUN rm -rf /etc/cloud /var/lib/cloud
+
+# Install root filesystem expansion script and service
+INSTALL 755 files/usr/local/bin/zeropoint-resize-rootfs.sh /usr/local/bin/zeropoint-resize-rootfs.sh
+INSTALL files/etc/systemd/system/zeropoint-resize-rootfs.service /etc/systemd/system/zeropoint-resize-rootfs.service
+
+# Enable root filesystem expansion service
+RUN systemctl enable zeropoint-resize-rootfs.service

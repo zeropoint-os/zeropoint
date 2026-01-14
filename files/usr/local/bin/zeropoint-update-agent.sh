@@ -1,4 +1,5 @@
 #!/bin/bash
+export DEBIAN_FRONTEND=noninteractive
 
 logger -t zeropoint-agent-update "=== Zeropoint Agent Update Check ==="
 

@@ -1,8 +1,9 @@
 #!/bin/bash
 set -e
+export DEBIAN_FRONTEND=noninteractive
 
-MARKER_FILE="/var/lib/zeropoint/.apt-storage-configured"
-STORAGE_MARKER="/var/lib/zeropoint/.storage-initialized"
+MARKER_FILE="/etc/zeropoint/.apt-storage-configured"
+STORAGE_MARKER="/etc/zeropoint/.storage-initialized"
 
 # Exit if already configured
 if [ -f "$MARKER_FILE" ]; then
@@ -19,10 +20,10 @@ if [ ! -f "$STORAGE_MARKER" ]; then
 fi
 
 # Check for manual storage mode
-if [ -f "/var/lib/zeropoint/.storage-manual-mode" ]; then
+if [ -f "/etc/zeropoint/.storage-manual-mode" ]; then
     logger -t zeropoint-apt-storage "Manual storage mode detected - skipping automatic apt storage configuration"
-    mkdir -p /var/lib/zeropoint
-    touch "/var/lib/zeropoint/.apt-storage-manual-mode"
+    mkdir -p /etc/zeropoint
+    touch "/etc/zeropoint/.apt-storage-manual-mode"
     touch "$MARKER_FILE"
     exit 0
 fi
@@ -30,8 +31,8 @@ fi
 # Check if we have the NVMe storage mounted
 if ! mountpoint -q /var/lib/zeropoint; then
     logger -t zeropoint-apt-storage "NVMe storage not mounted, using default apt configuration"
-    mkdir -p /var/lib/zeropoint
-    touch "/var/lib/zeropoint/.apt-storage-skipped"
+    mkdir -p /etc/zeropoint
+    touch "/etc/zeropoint/.apt-storage-skipped"
     touch "$MARKER_FILE"
     exit 0
 fi

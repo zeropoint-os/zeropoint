@@ -1,8 +1,9 @@
 #!/bin/bash
 set -e
+export DEBIAN_FRONTEND=noninteractive
 
 STORAGE_ROOT="/var/lib/zeropoint"
-MARKER_FILE="/var/lib/zeropoint/.storage-initialized"
+MARKER_FILE="/etc/zeropoint/.storage-initialized"
 
 # Check for manual storage mode
 if [ -f "/boot/NO_STORAGE_SETUP" ]; then
@@ -13,8 +14,8 @@ if [ -f "/boot/NO_STORAGE_SETUP" ]; then
     echo "MODULE_STORAGE_ROOT=$STORAGE_ROOT" > /etc/zeropoint.env
     
     # Create manual mode markers
-    mkdir -p /var/lib/zeropoint
-    touch "/var/lib/zeropoint/.storage-manual-mode"
+    mkdir -p /etc/zeropoint
+    touch "/etc/zeropoint/.storage-manual-mode"
     touch "$MARKER_FILE"
     
     logger -t zeropoint-storage "Manual storage mode initialized - use zeropoint-agent UI to configure storage"
@@ -47,8 +48,8 @@ if [ -z "$AVAILABLE_DISKS" ]; then
     echo "MODULE_STORAGE_ROOT=$STORAGE_ROOT" > /etc/zeropoint.env
     
     # Create intermediate marker
-    mkdir -p /var/lib/zeropoint
-    touch "/var/lib/zeropoint/.storage-no-disks-found"
+    mkdir -p /etc/zeropoint
+    touch "/etc/zeropoint/.storage-no-disks-found"
     
     # Configure Docker to use boot device storage (fallback)
     mkdir -p /etc/docker
@@ -97,8 +98,8 @@ if [ "$PART_COUNT" -gt 0 ]; then
     echo "MODULE_STORAGE_ROOT=$STORAGE_ROOT" > /etc/zeropoint.env
     
     # Create intermediate marker
-    mkdir -p /var/lib/zeropoint
-    touch "/var/lib/zeropoint/.storage-partitions-detected"
+    mkdir -p /etc/zeropoint
+    touch "/etc/zeropoint/.storage-partitions-detected"
     
     # Configure Docker to use boot device storage (fallback)
     mkdir -p /etc/docker
@@ -157,7 +158,7 @@ state = "/run/containerd"
 CONTAINERDEOF
 
 # Create marker file
-mkdir -p /var/lib/zeropoint
+mkdir -p /etc/zeropoint
 touch "$MARKER_FILE"
 
 logger -t zeropoint-storage "=== Storage setup complete ==="

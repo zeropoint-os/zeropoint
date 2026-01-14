@@ -9,6 +9,7 @@ Type=oneshot
 ExecStart=/usr/local/bin/zeropoint-update-agent.sh
 RemainAfterExit=yes
 StandardOutput=journal+console
+Environment=DEBIAN_FRONTEND=noninteractive
 
 [Install]
 WantedBy=multi-user.target

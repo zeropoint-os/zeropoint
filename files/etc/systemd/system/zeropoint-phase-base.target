@@ -3,6 +3,7 @@ Description=Zeropoint Base System Services
 Documentation=https://docs.zeropoint.example.com/boot-phases
 After=local-fs.target
 Wants=local-fs.target
+Wants=zeropoint-resize-rootfs.service
 
 [Install]
 WantedBy=multi-user.target

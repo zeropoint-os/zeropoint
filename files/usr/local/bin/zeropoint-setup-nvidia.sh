@@ -1,7 +1,8 @@
 #!/bin/bash
 set -e
+export DEBIAN_FRONTEND=noninteractive
 
-MARKER_FILE="/var/lib/zeropoint/.nvidia-initialized"
+MARKER_FILE="/etc/zeropoint/.nvidia-initialized"
 
 # Exit if already initialized
 if [ -f "$MARKER_FILE" ]; then
@@ -15,8 +16,8 @@ logger -t zeropoint-nvidia "=== Starting NVIDIA GPU Setup ==="
 NVIDIA_DEVICES=$(lspci | grep -i nvidia || true)
 if [ -z "$NVIDIA_DEVICES" ]; then
     logger -t zeropoint-nvidia "No NVIDIA GPUs detected, skipping NVIDIA setup"
-    mkdir -p /var/lib/zeropoint
-    touch "/var/lib/zeropoint/.nvidia-not-detected"
+    mkdir -p /etc/zeropoint
+    touch "/etc/zeropoint/.nvidia-not-detected"
     touch "$MARKER_FILE"
     exit 0
 fi
@@ -86,8 +87,8 @@ else
 fi
 
 # Create marker files
-mkdir -p /var/lib/zeropoint
-touch "/var/lib/zeropoint/.nvidia-driver-installed"
+mkdir -p /etc/zeropoint
+touch "/etc/zeropoint/.nvidia-driver-installed"
 touch "$MARKER_FILE"
 
 logger -t zeropoint-nvidia "=== NVIDIA setup complete - rebooting to activate drivers ==="
