@@ -1,0 +1,2 @@
+# Remove apt lists 
+RUN rm -rf /var/lib/apt/lists/*

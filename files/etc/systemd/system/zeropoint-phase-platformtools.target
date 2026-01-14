@@ -1,0 +1,8 @@
+[Unit]
+Description=Zeropoint Platform Tools Services
+Documentation=https://docs.zeropoint.example.com/boot-phases
+After=zeropoint-storage.target
+Wants=zeropoint-phase-storage.target
+
+[Install]
+WantedBy=multi-user.target

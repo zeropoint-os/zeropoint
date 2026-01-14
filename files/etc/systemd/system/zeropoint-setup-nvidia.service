@@ -1,0 +1,15 @@
+[Unit]
+Description=Zeropoint First-Boot NVIDIA GPU Setup
+After=network-online.target zeropoint-setup-storage.service zeropoint-configure-apt-storage.service
+Before=docker.service containerd.service zeropoint-agent.service
+Requires=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/zeropoint-setup-nvidia.sh
+RemainAfterExit=yes
+StandardOutput=journal+console
+TimeoutStartSec=600
+
+[Install]
+WantedBy=multi-user.target

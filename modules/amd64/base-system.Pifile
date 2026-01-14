@@ -1,0 +1,8 @@
+RUN apt-get update
+
+# Install standard kernel for physical hardware (cloud kernel lacks many drivers)
+RUN apt-get install -y linux-image-amd64
+
+# Remove cloud-init and cloud kernel
+RUN apt-get purge -y cloud-init cloud-initramfs-growroot cloud-guest-utils linux-image-*-cloud-amd64 || true
+RUN rm -rf /etc/cloud /var/lib/cloud

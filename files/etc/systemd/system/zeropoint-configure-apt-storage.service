@@ -1,0 +1,13 @@
+[Unit]
+Description=Configure Apt to use NVMe Storage
+After=zeropoint-setup-storage.service
+Before=zeropoint-setup-nvidia.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/zeropoint-configure-apt-storage.sh
+RemainAfterExit=yes
+StandardOutput=journal+console
+
+[Install]
+WantedBy=multi-user.target

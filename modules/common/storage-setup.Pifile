@@ -1,0 +1,24 @@
+# Install first-boot storage setup script
+# TODO: Replace with mergerfs pooling solution for multi-disk support
+INSTALL 755 files/usr/local/bin/zeropoint-setup-storage.sh /usr/local/bin/zeropoint-setup-storage.sh
+
+# Create systemd service for first-boot storage setup
+RUN bash -c 'cat > /etc/systemd/system/zeropoint-setup-storage.service << EOF
+[Unit]
+Description=Zeropoint First-Boot Storage Setup
+DefaultDependencies=no
+After=local-fs.target
+Before=docker.service containerd.service zeropoint-agent.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/zeropoint-setup-storage.sh
+RemainAfterExit=yes
+StandardOutput=journal+console
+
+[Install]
+WantedBy=multi-user.target
+EOF'
+
+# Enable first-boot storage setup service
+RUN systemctl enable zeropoint-setup-storage.service

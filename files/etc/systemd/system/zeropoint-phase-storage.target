@@ -1,0 +1,8 @@
+[Unit]
+Description=Zeropoint Storage Services
+Documentation=https://docs.zeropoint.example.com/boot-phases
+After=zeropoint-connectivity.target
+Wants=zeropoint-phase-connectivity.target
+
+[Install]
+WantedBy=multi-user.target

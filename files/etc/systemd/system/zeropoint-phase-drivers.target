@@ -1,0 +1,8 @@
+[Unit]
+Description=Zeropoint Hardware Drivers Services
+Documentation=https://docs.zeropoint.example.com/boot-phases
+After=zeropoint-platformtools.target
+Wants=zeropoint-phase-platformtools.target
+
+[Install]
+WantedBy=multi-user.target

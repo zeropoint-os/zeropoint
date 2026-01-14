@@ -10,6 +10,9 @@ BUILD_DIR="$SCRIPT_DIR/.build"
 # Ensure build directory exists
 mkdir -p "$BUILD_DIR"
 
+# Clean up any previous builds
+rm -rf "$BUILD_DIR"/*
+
 echo "=== Preparing zeropoint-agent binary ==="
 
 if [ "${USE_LOCAL_AGENT_BUILD:-0}" = "1" ]; then
@@ -32,8 +35,26 @@ else
     DOWNLOAD_URL="https://github.com/zeropoint-os/zeropoint-agent/releases/latest/download/zeropoint-agent-linux-amd64.tar.gz"
     
     curl -fsSL "$DOWNLOAD_URL" -o "$BUILD_DIR/zeropoint-agent.tar.gz"
-    tar -xzf "$BUILD_DIR/zeropoint-agent.tar.gz" -C "$BUILD_DIR/"
+    
+    # Extract to a temporary directory to avoid naming conflicts
+    TEMP_DIR="$BUILD_DIR/temp_extract"
+    mkdir -p "$TEMP_DIR"
+    tar -xzf "$BUILD_DIR/zeropoint-agent.tar.gz" -C "$TEMP_DIR/"
     rm "$BUILD_DIR/zeropoint-agent.tar.gz"
+    
+    # Move files from the nested structure to build root
+    if [ -d "$TEMP_DIR/zeropoint-agent" ]; then
+        # Move the binary file
+        mv "$TEMP_DIR/zeropoint-agent/zeropoint-agent" "$BUILD_DIR/"
+        # Move the web folder if it exists
+        if [ -d "$TEMP_DIR/zeropoint-agent/web" ]; then
+            mv "$TEMP_DIR/zeropoint-agent/web" "$BUILD_DIR/"
+        fi
+    fi
+    
+    # Clean up temp directory
+    rm -rf "$TEMP_DIR"
+    
     chmod +x "$BUILD_DIR/zeropoint-agent"
     echo "✓ GitHub release agent ready"
 fi

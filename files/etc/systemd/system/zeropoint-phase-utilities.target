@@ -1,0 +1,8 @@
+[Unit]
+Description=Zeropoint Utilities Services
+Documentation=https://docs.zeropoint.example.com/boot-phases
+After=zeropoint-base.target
+Requires=zeropoint-base.target
+
+[Install]
+WantedBy=multi-user.target

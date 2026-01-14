@@ -1,0 +1,8 @@
+[Unit]
+Description=Zeropoint Agent Services
+Documentation=https://docs.zeropoint.example.com/boot-phases
+After=zeropoint-phase-connectivity.target
+Requires=zeropoint-phase-connectivity.target
+
+[Install]
+WantedBy=multi-user.target
