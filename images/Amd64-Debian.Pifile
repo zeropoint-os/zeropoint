@@ -5,8 +5,6 @@ PUMP 500M
 # Phase 1: Base
 INCLUDE modules/amd64/base-system
 INCLUDE modules/amd64/console-boot
-INCLUDE modules/common/set-memorable-hostname
-INCLUDE modules/common/systemd-phase-targets
 
 # Phase 2: Utilities
 INCLUDE modules/common/install-utilities
@@ -15,18 +13,14 @@ INCLUDE modules/common/install-utilities
 INCLUDE modules/common/ssh-config
 INCLUDE modules/common/network-config
 
-# Phase 4: Storage
-INCLUDE modules/common/storage-setup
-INCLUDE modules/common/configure-apt-storage
-
-# Phase 5: PlatformTools
+# Phase 4: PlatformTools
 INCLUDE modules/common/install-docker
 INCLUDE modules/common/install-terraform
 
-# Phase 6: Drivers
-INCLUDE modules/hardware/nvidia/drivers
+# Phase 5: Boot Services (auto-generated from boot-services.yaml)
+INCLUDE modules/services/boot-services
 
-# Phase 7: Agent
+# Phase 6: Agent
 INCLUDE modules/common/zeropoint-agent
 
 # Phase 8: Cleanup

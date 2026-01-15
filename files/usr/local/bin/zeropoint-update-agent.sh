@@ -1,10 +1,14 @@
 #!/bin/bash
-export DEBIAN_FRONTEND=noninteractive
+set -e
+source /usr/local/bin/zeropoint-common.sh
+
+check_initialized
 
 logger -t zeropoint-agent-update "=== Zeropoint Agent Update Check ==="
 
 CURRENT_VERSION=$(/usr/local/bin/zeropoint-agent --version 2>/dev/null || echo "unknown")
 logger -t zeropoint-agent-update "Current version: $CURRENT_VERSION"
+mark "current-version-detected"
 
 logger -t zeropoint-agent-update "Checking for latest release..."
 DOWNLOAD_URL="https://github.com/zeropoint-os/zeropoint-agent/releases/latest/download/zeropoint-agent-linux-amd64.tar.gz"
@@ -16,6 +20,7 @@ if ! curl -fsSL "$DOWNLOAD_URL" -o /tmp/zeropoint-agent-new.tar.gz; then
     rm -f /tmp/zeropoint-agent-new.tar.gz
     exit 0  # Non-fatal, continue boot
 fi
+mark "agent-downloaded"
 
 # Verify it's a valid gzip file
 if ! file /tmp/zeropoint-agent-new.tar.gz | grep -q "gzip compressed"; then
@@ -32,6 +37,7 @@ if ! tar -xzf /tmp/zeropoint-agent-new.tar.gz -C /tmp/; then
     rm -f /tmp/zeropoint-agent-new.tar.gz
     exit 0  # Non-fatal, continue boot
 fi
+mark "agent-extracted"
 
 # Handle nested directory structure from GitHub releases
 if [ -d /tmp/zeropoint-agent ]; then
@@ -51,6 +57,7 @@ if [ ! -f "$AGENT_BINARY" ]; then
 fi
 
 chmod +x "$AGENT_BINARY"
+mark "agent-binary-verified"
 
 # Check new version
 NEW_VERSION=$("$AGENT_BINARY" --version 2>/dev/null || echo "unknown")
@@ -66,6 +73,7 @@ fi
 if [ "$CURRENT_VERSION" = "$NEW_VERSION" ]; then
     logger -t zeropoint-agent-update "Already running latest version, no update needed"
     rm -rf /tmp/zeropoint-agent* /tmp/web /tmp/zeropoint-agent-new.tar.gz
+    mark_done
     exit 0
 fi
 
@@ -73,6 +81,7 @@ logger -t zeropoint-agent-update "Updating agent from $CURRENT_VERSION to $NEW_V
 
 # Stop the agent service if running
 systemctl stop zeropoint-agent.service || true
+mark "agent-service-stopped"
 
 # Replace binary and web folder
 mv "$AGENT_BINARY" /usr/local/bin/zeropoint-agent
@@ -82,10 +91,13 @@ if [ -d "$WEB_DIR" ]; then
     mv "$WEB_DIR" /usr/local/bin/web
 fi
 chmod +x /usr/local/bin/zeropoint-agent
+mark "agent-binary-replaced"
 
 # Cleanup
 rm -f /tmp/zeropoint-agent-new.tar.gz
 rm -rf /tmp/zeropoint-agent*
+
+mark_done
 
 logger -t zeropoint-agent-update "=== Agent updated successfully ==="
 logger -t zeropoint-agent-update "New version: $NEW_VERSION"

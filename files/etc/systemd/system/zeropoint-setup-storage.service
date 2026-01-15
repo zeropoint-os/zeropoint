@@ -1,15 +1,15 @@
 [Unit]
-Description=Configure Apt to use NVMe Storage
+Description=Zeropoint First-Boot Storage Setup
 Documentation=https://docs.zeropoint.example.com/boot-phases
 DefaultDependencies=no
-After=zeropoint-setup-storage.service
+After=zeropoint-resize-rootfs.service
 
 [Service]
 Type=oneshot
-ExecStart=/usr/local/bin/zeropoint-configure-apt-storage.sh
+ExecStart=/usr/local/bin/zeropoint-setup-storage.sh
 StandardOutput=journal+console
 StandardError=journal+console
-TimeoutSec=120
+TimeoutSec=300
 RemainAfterExit=yes
 
 [Install]

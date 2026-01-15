@@ -1,6 +1,0 @@
-# Install NVIDIA GPU drivers setup script and service
-INSTALL 755 files/usr/local/bin/zeropoint-setup-nvidia.sh /usr/local/bin/zeropoint-setup-nvidia.sh
-INSTALL files/etc/systemd/system/zeropoint-setup-nvidia.service /etc/systemd/system/zeropoint-setup-nvidia.service
-
-# Enable NVIDIA setup service
-RUN systemctl enable zeropoint-setup-nvidia.service

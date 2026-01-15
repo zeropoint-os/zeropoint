@@ -1,8 +1,0 @@
-[Unit]
-Description=Zeropoint Cleanup Services
-Documentation=https://docs.zeropoint.example.com/boot-phases
-After=zeropoint-agent.target
-Requires=zeropoint-agent.target
-
-[Install]
-WantedBy=multi-user.target

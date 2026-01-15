@@ -2,3 +2,6 @@
 .build/
 pimod/
 zeropoint-agent/
+# Generated systemd service files (run: python3 generate-unit-files.py)
+files/etc/systemd/system/zeropoint-*.service
+modules/services/boot-services.Pifile

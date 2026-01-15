@@ -1,15 +1,16 @@
 [Unit]
 Description=Zeropoint Agent Update Check
-After=network-online.target
-Before=zeropoint-agent.service
-Requires=network-online.target
+Documentation=https://docs.zeropoint.example.com/boot-phases
+DefaultDependencies=no
+After=zeropoint-configure-apt-storage.service
 
 [Service]
 Type=oneshot
 ExecStart=/usr/local/bin/zeropoint-update-agent.sh
-RemainAfterExit=yes
 StandardOutput=journal+console
-Environment=DEBIAN_FRONTEND=noninteractive
+StandardError=journal+console
+TimeoutSec=600
+RemainAfterExit=yes
 
 [Install]
 WantedBy=multi-user.target

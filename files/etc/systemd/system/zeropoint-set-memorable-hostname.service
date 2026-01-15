@@ -1,15 +1,14 @@
 [Unit]
-Description=Configure Apt to use NVMe Storage
+Description=Zeropoint Generate Memorable Hostname
 Documentation=https://docs.zeropoint.example.com/boot-phases
 DefaultDependencies=no
-After=zeropoint-setup-storage.service
 
 [Service]
 Type=oneshot
-ExecStart=/usr/local/bin/zeropoint-configure-apt-storage.sh
+ExecStart=/usr/local/bin/zeropoint-set-memorable-hostname.sh
 StandardOutput=journal+console
 StandardError=journal+console
-TimeoutSec=120
+TimeoutSec=30
 RemainAfterExit=yes
 
 [Install]

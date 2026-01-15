@@ -1,9 +1,13 @@
 #!/bin/bash
 set -e
-export DEBIAN_FRONTEND=noninteractive
+source /usr/local/bin/zeropoint-common.sh
+
+check_initialized
 
 STORAGE_ROOT="/var/lib/zeropoint"
-MARKER_FILE="/etc/zeropoint/.storage-initialized"
+
+logger -t zeropoint-storage "=== Zeropoint Storage Setup ==="
+logger -t zeropoint-storage "Searching for available storage devices..."
 
 # Check for manual storage mode
 if [ -f "/boot/NO_STORAGE_SETUP" ]; then
@@ -13,23 +17,12 @@ if [ -f "/boot/NO_STORAGE_SETUP" ]; then
     mkdir -p "$STORAGE_ROOT"
     echo "MODULE_STORAGE_ROOT=$STORAGE_ROOT" > /etc/zeropoint.env
     
-    # Create manual mode markers
-    mkdir -p /etc/zeropoint
-    touch "/etc/zeropoint/.storage-manual-mode"
-    touch "$MARKER_FILE"
+    mark "manual-mode"
+    mark_done
     
     logger -t zeropoint-storage "Manual storage mode initialized - use zeropoint-agent UI to configure storage"
     exit 0
 fi
-
-# Exit if already initialized
-if [ -f "$MARKER_FILE" ]; then
-    logger -t zeropoint-storage "Storage already initialized, skipping..."
-    exit 0
-fi
-
-logger -t zeropoint-storage "=== Zeropoint Storage Setup ==="
-logger -t zeropoint-storage "Searching for available storage devices..."
 
 # Get the boot device (the device mounted at /)
 BOOT_DEVICE=$(findmnt -n -o SOURCE / | sed 's/[0-9]*$//' | sed 's|/dev/||')
@@ -47,10 +40,8 @@ if [ -z "$AVAILABLE_DISKS" ]; then
     mkdir -p "$STORAGE_ROOT"
     echo "MODULE_STORAGE_ROOT=$STORAGE_ROOT" > /etc/zeropoint.env
     
-    # Create intermediate marker
-    mkdir -p /etc/zeropoint
-    touch "/etc/zeropoint/.storage-no-disks-found"
-    
+    mark "no-disks-found"
+
     # Configure Docker to use boot device storage (fallback)
     mkdir -p /etc/docker
     cat > /etc/docker/daemon.json << DOCKEREOF
@@ -67,7 +58,7 @@ root = "$STORAGE_ROOT/containerd"
 state = "/run/containerd"
 CONTAINERDEOF
     
-    touch "$MARKER_FILE"
+    mark_done
     exit 0
 fi
 
@@ -88,6 +79,7 @@ fi
 
 DISK_SIZE=$(lsblk -bdn -o SIZE /dev/$LARGEST_DISK | awk '{printf "%.2f GB", $1/1024/1024/1024}')
 logger -t zeropoint-storage "Selected largest disk: /dev/$LARGEST_DISK ($DISK_SIZE)"
+mark "largest-disk-selected"
 
 # Check if disk has actual partitions (count lines with 'part' type)
 PART_COUNT=$(lsblk -n -o TYPE /dev/$LARGEST_DISK | grep -c '^part$' || true)
@@ -97,10 +89,8 @@ if [ "$PART_COUNT" -gt 0 ]; then
     mkdir -p "$STORAGE_ROOT"
     echo "MODULE_STORAGE_ROOT=$STORAGE_ROOT" > /etc/zeropoint.env
     
-    # Create intermediate marker
-    mkdir -p /etc/zeropoint
-    touch "/etc/zeropoint/.storage-partitions-detected"
-    
+    mark "partitions-detected"
+
     # Configure Docker to use boot device storage (fallback)
     mkdir -p /etc/docker
     cat > /etc/docker/daemon.json << DOCKEREOF
@@ -117,24 +107,27 @@ root = "$STORAGE_ROOT/containerd"
 state = "/run/containerd"
 CONTAINERDEOF
     
-    touch "$MARKER_FILE"
+    mark_done
     exit 0
 fi
 
 # Format and mount the disk
 logger -t zeropoint-storage "Formatting /dev/$LARGEST_DISK as ext4..."
 mkfs.ext4 -F -L zeropoint-storage /dev/$LARGEST_DISK
+mark "disk-formatted"
 
 logger -t zeropoint-storage "Creating mount point at $STORAGE_ROOT..."
 mkdir -p "$STORAGE_ROOT"
 
 logger -t zeropoint-storage "Mounting /dev/$LARGEST_DISK to $STORAGE_ROOT..."
 mount /dev/$LARGEST_DISK "$STORAGE_ROOT"
+mark "disk-mounted"
 
 # Add to fstab for persistence
 logger -t zeropoint-storage "Adding mount to /etc/fstab..."
 DISK_UUID=$(blkid -s UUID -o value /dev/$LARGEST_DISK)
 echo "UUID=$DISK_UUID $STORAGE_ROOT ext4 defaults,nofail 0 2" >> /etc/fstab
+mark "fstab-updated"
 
 # Set environment variable
 echo "MODULE_STORAGE_ROOT=$STORAGE_ROOT" > /etc/zeropoint.env
@@ -147,6 +140,7 @@ cat > /etc/docker/daemon.json << DOCKEREOF
   "data-root": "$STORAGE_ROOT/docker"
 }
 DOCKEREOF
+mark "docker-configured"
 
 # Configure containerd to use the HDD storage
 logger -t zeropoint-storage "Configuring containerd root..."
@@ -156,10 +150,15 @@ version = 2
 root = "$STORAGE_ROOT/containerd"
 state = "/run/containerd"
 CONTAINERDEOF
+mark "containerd-configured"
 
-# Create marker file
-mkdir -p /etc/zeropoint
-touch "$MARKER_FILE"
+# Restart services to pick up new configuration
+logger -t zeropoint-storage "Restarting Docker and containerd..."
+systemctl restart docker containerd 2>/dev/null || true
+mark "services-restarted"
+
+# Mark complete
+mark_done
 
 logger -t zeropoint-storage "=== Storage setup complete ==="
 logger -t zeropoint-storage "Storage root: $STORAGE_ROOT"

@@ -1,6 +1,0 @@
-# Install apt storage configuration script and service
-INSTALL 755 files/usr/local/bin/zeropoint-configure-apt-storage.sh /usr/local/bin/
-INSTALL files/etc/systemd/system/zeropoint-configure-apt-storage.service /etc/systemd/system/
-
-# Enable service
-RUN systemctl enable zeropoint-configure-apt-storage.service

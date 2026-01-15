@@ -1,8 +1,0 @@
-# Set random memorable hostname (0_o)
-RUN bash -c 'ADJECTIVES=(lantea praclarush ida dakara celestis sahal kheb velaneth norvaleth solkarush elenaris dracalon taloren asparush); \
-NOUNS=(taonas kaleth doran velas norin selan karoth lunas peron astra nareth luneth velon); \
-ADJ=${ADJECTIVES[$RANDOM % ${#ADJECTIVES[@]}]}; \
-NOUN=${NOUNS[$RANDOM % ${#NOUNS[@]}]}; \
-HOSTNAME="zeropoint-$ADJ-$NOUN"; \
-echo "$HOSTNAME" > /etc/hostname; \
-sed -i "s/127.0.1.1.*/127.0.1.1\t$HOSTNAME/" /etc/hosts'
