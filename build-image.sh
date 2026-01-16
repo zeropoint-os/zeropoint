@@ -71,7 +71,7 @@ echo "=== Building image with pimod ==="
 
 # Run pimod with the Pifile
 cd "$SCRIPT_DIR"
-sudo ./pimod/pimod.sh --resolv host ./images/Amd64-Debian.Pifile
+sudo /usr/src/pimod/pimod.sh ./images/Amd64-Debian.Pifile
 
 echo ""
 echo "=== Build complete ==="
