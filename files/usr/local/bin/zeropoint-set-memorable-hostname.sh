@@ -23,7 +23,7 @@ logger -t zeropoint-hostname "Updated /etc/hostname"
 mark "hostname-file-updated"
 
 # Apply the hostname change immediately
-hostnamectl set-hostname "$HOSTNAME"
+hostname "$HOSTNAME"
 logger -t zeropoint-hostname "Applied hostname to running system"
 mark "hostname-applied"
 

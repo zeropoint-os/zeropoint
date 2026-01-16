@@ -12,6 +12,14 @@ mark() {
     logger -t "$SCRIPT_BASE" "✓ $step"
 }
 
+# Create a custom marker file for inter-service communication
+mark_custom() {
+    local marker_name=$1
+    mkdir -p "$MARKER_DIR"
+    touch "$MARKER_DIR/.${SCRIPT_BASE}.${marker_name}"
+    logger -t "$SCRIPT_BASE" "✓ $marker_name (marker created)"
+}
+
 # Error trap handler - logs error details to journald
 on_error() {
     local line_num=$1

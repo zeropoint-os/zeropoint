@@ -17,10 +17,11 @@ class BootServiceGenerator:
 Description={description}
 Documentation=https://docs.zeropoint.example.com/boot-phases
 DefaultDependencies=no
-{after}
+{after}{conditions}
 [Service]
 Type=oneshot
 ExecStart=/usr/local/bin/{script}
+Environment=DEBIAN_FRONTEND=noninteractive
 StandardOutput=journal+console
 StandardError=journal+console
 TimeoutSec={timeout}
@@ -157,10 +158,32 @@ WantedBy=multi-user.target
                 if after_deps:
                     after_str = "After=" + " ".join(after_deps) + "\n"
 
+                # Handle conditions
+                conditions_str = ""
+                
+                # Add default condition to skip if already completed
+                conditions_str += f"ConditionPathExists=!/etc/zeropoint/.zeropoint-{name}\n"
+                
+                # Add any custom conditions from YAML
+                if 'conditions' in service:
+                    for condition in service['conditions']:
+                        # Handle shorthand conditions like "service.marker" or "!service.marker"
+                        if condition.startswith('!') and '.' in condition:
+                            # Negated marker: !zeropoint-setup-nvidia-drivers.reboot-required
+                            marker = condition[1:]  # Remove !
+                            conditions_str += f"ConditionPathExists=!/etc/zeropoint/.{marker}\n"
+                        elif '.' in condition and not condition.startswith('Condition'):
+                            # Positive marker: zeropoint-setup-nvidia-drivers.reboot-required  
+                            conditions_str += f"ConditionPathExists=/etc/zeropoint/.{condition}\n"
+                        else:
+                            # Raw systemd condition - pass through as-is
+                            conditions_str += condition + "\n"
+
                 # Generate unit file content
                 unit_content = self.TEMPLATE.format(
                     description=description,
                     after=after_str,
+                    conditions=conditions_str,
                     script=script,
                     timeout=timeout,
                 )

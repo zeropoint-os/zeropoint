@@ -72,3 +72,13 @@ phases:
         order: 70
         after:
           - setup-nvidia-drivers
+        conditions:
+          - "zeropoint-setup-nvidia-drivers.reboot-required"
+
+      - name: boot-complete
+        script: zeropoint-boot-complete.sh
+        description: Zeropoint Boot Process Complete
+        timeout: 30
+        order: 80
+        after:
+          - setup-nvidia-post-reboot

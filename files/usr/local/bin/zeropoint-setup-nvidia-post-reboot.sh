@@ -4,17 +4,9 @@ source /usr/local/bin/zeropoint-common.sh
 
 check_initialized
 
-PENDING_MARKER="/etc/zeropoint/.zeropoint-setup-nvidia-drivers.driver-install-pending-reboot"
-
 logger -t zeropoint-nvidia-post "=== Starting NVIDIA GPU Post-Reboot Verification ==="
 
-# Check if we have the pending-reboot marker from the driver installation
-if [ ! -f "$PENDING_MARKER" ]; then
-    logger -t zeropoint-nvidia-post "Driver installation not yet complete, skipping verification"
-    exit 0
-fi
-
-logger -t zeropoint-nvidia-post "Driver installation pending reboot marker found - verifying installation..."
+logger -t zeropoint-nvidia-post "Driver installation with reboot detected - verifying installation..."
 mark "verification-started"
 
 # Restart container services to pick up new configuration
