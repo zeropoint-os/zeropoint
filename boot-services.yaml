@@ -1,0 +1,84 @@
+# Zeropoint Boot Services Configuration
+# Defines all first-boot setup services, their dependencies, and execution order
+
+# Phase ordering - services run in this order
+phase_order:
+  - base
+  - storage
+  - utilities
+  - drivers
+
+phases:
+  base:
+    description: Base System Services
+    services:
+      - name: set-memorable-hostname
+        script: zeropoint-set-memorable-hostname.sh
+        description: Zeropoint Generate Memorable Hostname
+        timeout: 30
+        order: 10
+
+      - name: resize-rootfs
+        script: zeropoint-resize-rootfs.sh
+        description: Zeropoint First-Boot Root Filesystem Expansion
+        timeout: 300
+        order: 20
+
+  storage:
+    description: Storage Setup Services
+    services:
+      - name: setup-storage
+        script: zeropoint-setup-storage.sh
+        description: Zeropoint First-Boot Storage Setup
+        timeout: 300
+        order: 30
+        after:
+          - base
+
+      - name: configure-apt-storage
+        script: zeropoint-configure-apt-storage.sh
+        description: Configure Apt to use NVMe Storage
+        timeout: 120
+        order: 40
+        after:
+          - setup-storage
+
+  utilities:
+    description: Utility Services
+    services:
+      - name: update-agent
+        script: zeropoint-update-agent.sh
+        description: Zeropoint Agent Update Check
+        timeout: 600
+        order: 50
+        after:
+          - storage
+
+  drivers:
+    description: Hardware Driver Services
+    services:
+      - name: setup-nvidia-drivers
+        script: zeropoint-setup-nvidia-drivers.sh
+        description: Zeropoint NVIDIA GPU Driver Installation
+        timeout: 600
+        order: 60
+        after:
+          - utilities
+
+      - name: setup-nvidia-post-reboot
+        script: zeropoint-setup-nvidia-post-reboot.sh
+        description: Zeropoint NVIDIA GPU Post-Reboot Verification
+        timeout: 300
+        order: 70
+        after:
+          - setup-nvidia-drivers
+        conditions:
+          - "zeropoint-setup-nvidia-drivers.reboot-required"
+
+      - name: boot-complete
+        script: zeropoint-boot-complete.sh
+        description: Zeropoint Boot Process Complete
+        timeout: 30
+        order: 80
+        after:
+          - setup-nvidia-post-reboot

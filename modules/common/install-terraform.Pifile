@@ -1,0 +1,6 @@
+# Install Terraform
+RUN bash -c 'curl -fsSL https://apt.releases.hashicorp.com/gpg -o /etc/apt/keyrings/hashicorp.asc'
+RUN bash -c 'chmod a+r /etc/apt/keyrings/hashicorp.asc'
+RUN bash -c 'echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/hashicorp.asc] https://apt.releases.hashicorp.com $(. /etc/os-release && echo "$VERSION_CODENAME") main" > /etc/apt/sources.list.d/hashicorp.list'
+RUN apt-get update
+RUN apt-get install -y terraform

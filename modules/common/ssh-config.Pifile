@@ -1,0 +1,14 @@
+# SSH Configuration
+# TODO: Disable SSH when image is stable (uncomment lines below)
+# RUN systemctl disable ssh.service || true
+# RUN systemctl mask ssh.service || true
+RUN apt-get install -y openssh-server
+RUN ssh-keygen -A
+RUN bash -c 'mkdir -p /etc/ssh/sshd_config.d && cat > /etc/ssh/sshd_config.d/zeropoint.conf << EOF
+PermitRootLogin yes
+PasswordAuthentication yes
+EOF'
+RUN systemctl enable ssh.service
+
+# Set root password (change 'debian' to your preferred password)
+RUN bash -c 'echo "root:debian" | chpasswd'

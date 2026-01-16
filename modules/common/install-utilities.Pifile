@@ -1,0 +1,5 @@
+RUN apt-get install -y avahi-daemon curl nano git ca-certificates gnupg
+
+# Set nano as default editor (uses sensible-editor alternative)
+RUN bash -c 'echo "export EDITOR=nano" >> /etc/profile.d/editor.sh'
+RUN bash -c 'echo "export VISUAL=nano" >> /etc/profile.d/editor.sh'

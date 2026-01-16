@@ -12,14 +12,41 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y python3-pip
+          pip3 install pyyaml --break-system-packages
+
       - name: Download zeropoint-agent
         run: |
           mkdir -p .build
           curl -fsSL "https://github.com/zeropoint-os/zeropoint-agent/releases/latest/download/zeropoint-agent-linux-amd64.tar.gz" -o .build/zeropoint-agent.tar.gz
-          tar -xzf .build/zeropoint-agent.tar.gz -C .build/
+          
+          # Extract to a temporary directory to avoid naming conflicts
+          TEMP_DIR=".build/temp_extract"
+          mkdir -p "$TEMP_DIR"
+          tar -xzf .build/zeropoint-agent.tar.gz -C "$TEMP_DIR/"
           rm .build/zeropoint-agent.tar.gz
+          
+          # Move files from the nested structure to build root
+          if [ -d "$TEMP_DIR/zeropoint-agent" ]; then
+            # Move the binary file
+            mv "$TEMP_DIR/zeropoint-agent/zeropoint-agent" .build/
+            # Move the web folder if it exists
+            if [ -d "$TEMP_DIR/zeropoint-agent/web" ]; then
+              mv "$TEMP_DIR/zeropoint-agent/web" .build/
+            fi
+          fi
+          
+          # Clean up temp directory
+          rm -rf "$TEMP_DIR"
+          
           chmod +x .build/zeropoint-agent
           .build/zeropoint-agent --version || echo "Agent ready"
+
+      - name: Generate unit files
+        run: python3 generate-unit-files.py
 
       - name: Test AMD64 image
         uses: aniongithub/pimod@0.31
