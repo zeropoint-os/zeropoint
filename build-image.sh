@@ -63,6 +63,9 @@ fi
 AGENT_VERSION=$("$BUILD_DIR/zeropoint-agent" --version 2>/dev/null || echo "unknown")
 echo "Agent version: $AGENT_VERSION"
 
+echo "=== Generating zeropoint boot services ==="
+python3 generate-unit-files.py
+
 echo ""
 echo "=== Building image with pimod ==="
 
