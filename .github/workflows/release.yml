@@ -16,6 +16,12 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y python3-pip
+          pip3 install pyyaml --break-system-packages
+
       - name: Download zeropoint-agent
         run: |
           mkdir -p .build
@@ -24,6 +30,9 @@ jobs:
           rm .build/zeropoint-agent.tar.gz
           chmod +x .build/zeropoint-agent
           .build/zeropoint-agent --version || echo "Agent ready"
+
+      - name: Generate unit files
+        run: python3 generate-unit-files.py
 
       - name: Build AMD64 image
         uses: aniongithub/pimod@0.31
