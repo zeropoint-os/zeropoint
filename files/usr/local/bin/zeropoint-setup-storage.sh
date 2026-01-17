@@ -6,27 +6,27 @@ check_initialized
 
 STORAGE_ROOT="/var/lib/zeropoint"
 
-logger -t zeropoint-storage "=== Zeropoint Storage Setup ==="
-logger -t zeropoint-storage "Searching for available storage devices..."
+_log_notice "Zeropoint Storage Setup"
+_log_notice "Searching for available storage devices..."
 
 # Check for manual storage mode
 if [ -f "/boot/NO_STORAGE_SETUP" ]; then
-    logger -t zeropoint-storage "Manual storage mode detected - skipping automatic storage setup"
+    _log_notice "Manual storage mode detected - skipping automatic storage setup"
     
     # Create basic directory structure on boot device
     mkdir -p "$STORAGE_ROOT"
     echo "MODULE_STORAGE_ROOT=$STORAGE_ROOT" > /etc/zeropoint.env
     
-    mark "manual-mode"
+    mark_custom "storage-manual-mode"
     mark_done
     
-    logger -t zeropoint-storage "Manual storage mode initialized - use zeropoint-agent UI to configure storage"
+    _log_notice "Manual storage mode initialized - use zeropoint-agent UI to configure storage"
     exit 0
 fi
 
 # Get the boot device (the device mounted at /)
 BOOT_DEVICE=$(findmnt -n -o SOURCE / | sed 's/[0-9]*$//' | sed 's|/dev/||')
-logger -t zeropoint-storage "Boot device: $BOOT_DEVICE (will be excluded)"
+_log_notice "Boot device: $BOOT_DEVICE (will be excluded)"
 
 # Find all non-removable disks that are not the boot device and have no partitions
 AVAILABLE_DISKS=$(lsblk -nd -o NAME,TYPE,RM,SIZE --bytes | \
@@ -35,8 +35,8 @@ AVAILABLE_DISKS=$(lsblk -nd -o NAME,TYPE,RM,SIZE --bytes | \
     awk '{print $1}' || true)
 
 if [ -z "$AVAILABLE_DISKS" ]; then
-    logger -t zeropoint-storage "WARNING: No additional storage devices found!"
-    logger -t zeropoint-storage "Creating storage directory on boot device (limited space)"
+    _log_warning "WARNING: No additional storage devices found!"
+    _log_notice "Creating storage directory on boot device (limited space)"
     mkdir -p "$STORAGE_ROOT"
     echo "MODULE_STORAGE_ROOT=$STORAGE_ROOT" > /etc/zeropoint.env
     
@@ -62,8 +62,8 @@ CONTAINERDEOF
     exit 0
 fi
 
-logger -t zeropoint-storage "Available disks:"
-logger -t zeropoint-storage "$AVAILABLE_DISKS"
+_log_notice "Available disks:"
+_log_notice "$AVAILABLE_DISKS"
 
 # Find the largest disk (Option A: single disk strategy)
 # TODO: When switching to mergerfs, iterate over all disks instead
@@ -73,19 +73,19 @@ LARGEST_DISK=$(echo "$AVAILABLE_DISKS" | while read disk; do
 done | sort -rn | head -1 | awk '{print $2}')
 
 if [ -z "$LARGEST_DISK" ]; then
-    logger -t zeropoint-storage "ERROR: Could not determine largest disk"
+    _log_err "ERROR: Could not determine largest disk"
     exit 1
 fi
 
 DISK_SIZE=$(lsblk -bdn -o SIZE /dev/$LARGEST_DISK | awk '{printf "%.2f GB", $1/1024/1024/1024}')
-logger -t zeropoint-storage "Selected largest disk: /dev/$LARGEST_DISK ($DISK_SIZE)"
+_log_notice "Selected largest disk: /dev/$LARGEST_DISK ($DISK_SIZE)"
 mark "largest-disk-selected"
 
 # Check if disk has actual partitions (count lines with 'part' type)
 PART_COUNT=$(lsblk -n -o TYPE /dev/$LARGEST_DISK | grep -c '^part$' || true)
 if [ "$PART_COUNT" -gt 0 ]; then
-    logger -t zeropoint-storage "WARNING: /dev/$LARGEST_DISK has $PART_COUNT existing partitions, skipping format for safety"
-    logger -t zeropoint-storage "Creating storage directory on boot device (limited space)"
+    _log_warning "WARNING: /dev/$LARGEST_DISK has $PART_COUNT existing partitions, skipping format for safety"
+    _log_notice "Creating storage directory on boot device (limited space)"
     mkdir -p "$STORAGE_ROOT"
     echo "MODULE_STORAGE_ROOT=$STORAGE_ROOT" > /etc/zeropoint.env
     
@@ -112,19 +112,19 @@ CONTAINERDEOF
 fi
 
 # Format and mount the disk
-logger -t zeropoint-storage "Formatting /dev/$LARGEST_DISK as ext4..."
+_log_notice "Formatting /dev/$LARGEST_DISK as ext4..."
 mkfs.ext4 -F -L zeropoint-storage /dev/$LARGEST_DISK
 mark "disk-formatted"
 
-logger -t zeropoint-storage "Creating mount point at $STORAGE_ROOT..."
+_log_notice "Creating mount point at $STORAGE_ROOT..."
 mkdir -p "$STORAGE_ROOT"
 
-logger -t zeropoint-storage "Mounting /dev/$LARGEST_DISK to $STORAGE_ROOT..."
+_log_notice "Mounting /dev/$LARGEST_DISK to $STORAGE_ROOT..."
 mount /dev/$LARGEST_DISK "$STORAGE_ROOT"
 mark "disk-mounted"
 
 # Add to fstab for persistence
-logger -t zeropoint-storage "Adding mount to /etc/fstab..."
+_log_notice "Adding mount to /etc/fstab..."
 DISK_UUID=$(blkid -s UUID -o value /dev/$LARGEST_DISK)
 echo "UUID=$DISK_UUID $STORAGE_ROOT ext4 defaults,nofail 0 2" >> /etc/fstab
 mark "fstab-updated"
@@ -133,7 +133,7 @@ mark "fstab-updated"
 echo "MODULE_STORAGE_ROOT=$STORAGE_ROOT" > /etc/zeropoint.env
 
 # Configure Docker to use the HDD storage
-logger -t zeropoint-storage "Configuring Docker data-root..."
+_log_notice "Configuring Docker data-root..."
 mkdir -p /etc/docker
 cat > /etc/docker/daemon.json << DOCKEREOF
 {
@@ -143,7 +143,7 @@ DOCKEREOF
 mark "docker-configured"
 
 # Configure containerd to use the HDD storage
-logger -t zeropoint-storage "Configuring containerd root..."
+_log_notice "Configuring containerd root..."
 mkdir -p /etc/containerd
 cat > /etc/containerd/config.toml << CONTAINERDEOF
 version = 2
@@ -153,17 +153,17 @@ CONTAINERDEOF
 mark "containerd-configured"
 
 # Restart services to pick up new configuration
-logger -t zeropoint-storage "Restarting Docker and containerd..."
+_log_notice "Restarting Docker and containerd..."
 systemctl restart docker containerd 2>/dev/null || true
 mark "services-restarted"
 
 # Mark complete
 mark_done
 
-logger -t zeropoint-storage "=== Storage setup complete ==="
-logger -t zeropoint-storage "Storage root: $STORAGE_ROOT"
-logger -t zeropoint-storage "Docker data-root: $STORAGE_ROOT/docker"
-logger -t zeropoint-storage "Disk: /dev/$LARGEST_DISK ($DISK_SIZE)"
+_log_notice "Storage setup complete"
+_log_notice "Storage root: $STORAGE_ROOT"
+_log_notice "Docker data-root: $STORAGE_ROOT/docker"
+_log_notice "Disk: /dev/$LARGEST_DISK ($DISK_SIZE)"
 
 # Ensure Docker picks up the new configuration on first start
 # Since this service runs Before=docker.service, Docker will read the config when it starts
