@@ -29,7 +29,15 @@ _log_err() {
 }
 
 _log_warning() {
-    _log "user.warning" "$1"
+    local message=$1
+    _log "user.warning" "$message"
+    
+    # Create warning marker file with details
+    mkdir -p "$MARKER_DIR"
+    {
+        echo "timestamp=$(date -Iseconds)"
+        echo "message=$message"
+    } > "$MARKER_DIR/.${SCRIPT_BASE}.warning"
 }
 
 # Log a completed step with tag and message
@@ -50,7 +58,21 @@ mark_custom() {
 on_error() {
     local line_num=$1
     local exit_code=$?
-    _log_err "Failed at line $line_num (exit: $exit_code): ${BASH_COMMAND}"
+    local error_msg="Failed at line $line_num (exit: $exit_code): ${BASH_COMMAND}"
+    
+    _log_err "$error_msg"
+    
+    # Create error marker file with failure details
+    mkdir -p "$MARKER_DIR"
+    {
+        echo "timestamp=$(date -Iseconds)"
+        echo "line=$line_num"
+        echo "exit_code=$exit_code"
+        echo "command=${BASH_COMMAND}"
+    } > "$MARKER_DIR/.${SCRIPT_BASE}.error"
+    
+    # Also mark which step failed
+    mark "error-at-line-$line_num"
 }
 
 # Log successful completion and create sentinel marker file
