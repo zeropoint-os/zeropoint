@@ -4,19 +4,19 @@ source /usr/local/bin/zeropoint-common.sh
 
 check_initialized
 
-logger -t zeropoint-agent-update "=== Zeropoint Agent Update Check ==="
+_log_notice "Zeropoint Agent Update Check"
 
 CURRENT_VERSION=$(/usr/local/bin/zeropoint-agent --version 2>/dev/null || echo "unknown")
-logger -t zeropoint-agent-update "Current version: $CURRENT_VERSION"
+_log_notice "Current version: $CURRENT_VERSION"
 mark "current-version-detected"
 
-logger -t zeropoint-agent-update "Checking for latest release..."
+_log_notice "Checking for latest release..."
 DOWNLOAD_URL="https://github.com/zeropoint-os/zeropoint-agent/releases/latest/download/zeropoint-agent-linux-amd64.tar.gz"
 
 # Download to temp location
-logger -t zeropoint-agent-update "Downloading latest agent..."
+_log_notice "Downloading latest agent..."
 if ! curl -fsSL "$DOWNLOAD_URL" -o /tmp/zeropoint-agent-new.tar.gz; then
-    logger -t zeropoint-agent-update "ERROR: Failed to download agent update"
+    _log_err "ERROR: Failed to download agent update"
     rm -f /tmp/zeropoint-agent-new.tar.gz
     exit 0  # Non-fatal, continue boot
 fi
@@ -24,16 +24,16 @@ mark "agent-downloaded"
 
 # Verify it's a valid gzip file
 if ! file /tmp/zeropoint-agent-new.tar.gz | grep -q "gzip compressed"; then
-    logger -t zeropoint-agent-update "ERROR: Downloaded file is not a valid gzip archive"
+    _log_err "ERROR: Downloaded file is not a valid gzip archive"
     cat /tmp/zeropoint-agent-new.tar.gz
     rm -f /tmp/zeropoint-agent-new.tar.gz
     exit 0  # Non-fatal, continue boot
 fi
 
 # Extract to temp location
-logger -t zeropoint-agent-update "Extracting agent archive..."
+_log_notice "Extracting agent archive..."
 if ! tar -xzf /tmp/zeropoint-agent-new.tar.gz -C /tmp/; then
-    logger -t zeropoint-agent-update "ERROR: Failed to extract agent archive"
+    _log_err "ERROR: Failed to extract agent archive"
     rm -f /tmp/zeropoint-agent-new.tar.gz
     exit 0  # Non-fatal, continue boot
 fi
@@ -51,7 +51,7 @@ else
 fi
 
 if [ ! -f "$AGENT_BINARY" ]; then
-    logger -t zeropoint-agent-update "ERROR: Agent binary not found in extracted archive"
+    _log_err "ERROR: Agent binary not found in extracted archive"
     rm -rf /tmp/zeropoint-agent* /tmp/web /tmp/zeropoint-agent-new.tar.gz
     exit 0  # Non-fatal, continue boot
 fi
@@ -61,23 +61,23 @@ mark "agent-binary-verified"
 
 # Check new version
 NEW_VERSION=$("$AGENT_BINARY" --version 2>/dev/null || echo "unknown")
-logger -t zeropoint-agent-update "Latest version: $NEW_VERSION"
+_log_notice "Latest version: $NEW_VERSION"
 
 # Don't update if we can't determine the new version
 if [ "$NEW_VERSION" = "unknown" ]; then
-    logger -t zeropoint-agent-update "ERROR: Cannot determine version of downloaded agent, skipping update for safety"
+    _log_err "ERROR: Cannot determine version of downloaded agent, skipping update for safety"
     rm -rf /tmp/zeropoint-agent* /tmp/web /tmp/zeropoint-agent-new.tar.gz
     exit 0
 fi
 
 if [ "$CURRENT_VERSION" = "$NEW_VERSION" ]; then
-    logger -t zeropoint-agent-update "Already running latest version, no update needed"
+    _log_notice "Already running latest version, no update needed"
     rm -rf /tmp/zeropoint-agent* /tmp/web /tmp/zeropoint-agent-new.tar.gz
     mark_done
     exit 0
 fi
 
-logger -t zeropoint-agent-update "Updating agent from $CURRENT_VERSION to $NEW_VERSION..."
+_log_notice "Updating agent from $CURRENT_VERSION to $NEW_VERSION..."
 
 # Stop the agent service if running
 systemctl stop zeropoint-agent.service || true
@@ -99,5 +99,5 @@ rm -rf /tmp/zeropoint-agent*
 
 mark_done
 
-logger -t zeropoint-agent-update "=== Agent updated successfully ==="
-logger -t zeropoint-agent-update "New version: $NEW_VERSION"
+_log_notice "Agent updated successfully"
+_log_notice "New version: $NEW_VERSION"

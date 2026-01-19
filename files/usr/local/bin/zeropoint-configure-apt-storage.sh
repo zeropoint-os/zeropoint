@@ -5,20 +5,21 @@ source /usr/local/bin/zeropoint-common.sh
 check_initialized
 
 STORAGE_MARKER="/etc/zeropoint/.zeropoint-setup-storage"
+STORAGE_MANUAL_MODE="/etc/zeropoint/.zeropoint-setup-storage.storage-manual-mode"
 
-logger -t zeropoint-apt-storage "=== Configuring Apt Storage ==="
+_log_notice "Configuring Apt Storage"
 
 # Only configure if storage service succeeded
 if [ ! -f "$STORAGE_MARKER" ]; then
-    logger -t zeropoint-apt-storage "Storage service not completed, skipping apt storage configuration"
+    _log_notice "Storage service not completed, skipping apt storage configuration"
     mark "storage-not-initialized"
     mark_done
     exit 0
 fi
 
 # Check for manual storage mode
-if [ -f "/etc/zeropoint/.storage-manual-mode" ]; then
-    logger -t zeropoint-apt-storage "Manual storage mode detected - skipping automatic apt storage configuration"
+if [ -f "$STORAGE_MANUAL_MODE" ]; then
+    _log_notice "Manual storage mode detected - skipping automatic apt storage configuration"
     mark "manual-storage-mode"
     mark_done
     exit 0
@@ -26,13 +27,13 @@ fi
 
 # Check if we have the NVMe storage mounted
 if ! mountpoint -q /var/lib/zeropoint; then
-    logger -t zeropoint-apt-storage "NVMe storage not mounted, using default apt configuration"
+    _log_notice "NVMe storage not mounted, using default apt configuration"
     mark "storage-not-mounted"
     mark_done
     exit 0
 fi
 
-logger -t zeropoint-apt-storage "Configuring apt to use NVMe storage for downloads and cache..."
+_log_notice "Configuring apt to use NVMe storage for downloads and cache..."
 
 # Configure apt to use NVMe storage
 echo 'Dir::Cache::archives "/var/lib/zeropoint/apt/archives";' > /etc/apt/apt.conf.d/01-zeropoint-cache
@@ -56,9 +57,9 @@ apt autoremove -y --purge
 apt autoclean
 mark "cache-cleaned"
 
-logger -t zeropoint-apt-storage "✓ Apt configured to use NVMe storage - Cache: /var/lib/zeropoint/apt/cache, Archives: /var/lib/zeropoint/apt/archives"
+_log_notice "Apt configured to use NVMe storage - Cache: /var/lib/zeropoint/apt/cache, Archives: /var/lib/zeropoint/apt/archives"
 
 # Mark complete
 mark_done
 
-logger -t zeropoint-apt-storage "=== Apt storage configuration complete ==="
+_log_notice "Apt storage configuration complete"
