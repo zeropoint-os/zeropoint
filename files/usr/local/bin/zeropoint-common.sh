@@ -1,25 +1,56 @@
 #!/bin/bash
 # Observability and marker file functions for zeropoint scripts
-# Source this in scripts that need structured logging and idempotency markers
+# Safe for early boot, initramfs, and headless execution
+
+set -o errexit
+set -o pipefail
+set -o errtrace
 
 SCRIPT_NAME="${SCRIPT_NAME:-${0##*/}}"
 SCRIPT_BASE="${SCRIPT_BASE:-${SCRIPT_NAME%.sh}}"
 MARKER_DIR="${MARKER_DIR:-/etc/zeropoint}"
-LOG_STREAM="/tmp/zeropoint-log"
 
-# Internal function to write to both syslog and log stream
-_log() {
-    local priority=$1
-    local message=$2
-    
-    # Write to syslog
-    logger -t "$SCRIPT_BASE" -p "$priority" "$message"
-    
-    # Write to log stream FIFO
-    echo "[$(date '+%Y-%m-%d %H:%M:%S')] $SCRIPT_BASE: $message" >> "$LOG_STREAM" 2>/dev/null || true
+LOG_STREAM="/tmp/zeropoint-log"
+LOG_FD=3
+
+# -----------------------------------------------------------------------------
+# Initialize logging (FIFO-safe, non-blocking)
+# -----------------------------------------------------------------------------
+_init_log_stream() {
+    # If path exists but is not a FIFO, remove it
+    if [ -e "$LOG_STREAM" ] && [ ! -p "$LOG_STREAM" ]; then
+        rm -f "$LOG_STREAM"
+    fi
+
+    # Create FIFO if missing
+    if [ ! -p "$LOG_STREAM" ]; then
+        mkfifo "$LOG_STREAM" 2>/dev/null || true
+    fi
+
+    # Open FIFO read+write so writes never block
+    # This is the critical fix
+    exec {LOG_FD}<>"$LOG_STREAM" 2>/dev/null || true
 }
 
-# Convenience wrappers for common log levels
+# -----------------------------------------------------------------------------
+# Internal logging primitive
+# -----------------------------------------------------------------------------
+_log() {
+    local priority="$1"
+    local message="$2"
+
+    # Syslog (never blocks)
+    logger -t "$SCRIPT_BASE" -p "$priority" "$message" || true
+
+    # FIFO log stream (never blocks due to RDWR open)
+    if [ -e "/proc/$$/fd/$LOG_FD" ]; then
+        echo "[$(date '+%Y-%m-%d %H:%M:%S')] $SCRIPT_BASE: $message" >&$LOG_FD 2>/dev/null || true
+    fi
+}
+
+# -----------------------------------------------------------------------------
+# Convenience wrappers
+# -----------------------------------------------------------------------------
 _log_notice() {
     _log "user.notice" "$1"
 }
@@ -29,10 +60,9 @@ _log_err() {
 }
 
 _log_warning() {
-    local message=$1
+    local message="$1"
     _log "user.warning" "$message"
-    
-    # Create warning marker file with details
+
     mkdir -p "$MARKER_DIR"
     {
         echo "timestamp=$(date -Iseconds)"
@@ -40,60 +70,66 @@ _log_warning() {
     } > "$MARKER_DIR/.${SCRIPT_BASE}.warning"
 }
 
-# Log a completed step with tag and message
+# -----------------------------------------------------------------------------
+# Marker helpers
+# -----------------------------------------------------------------------------
 mark() {
-    local step=$1
+    local step="$1"
     _log_notice "Completed: $step"
 }
 
-# Create a custom marker file for inter-service communication
 mark_custom() {
-    local marker_name=$1
+    local marker_name="$1"
     mkdir -p "$MARKER_DIR"
     touch "$MARKER_DIR/.${SCRIPT_BASE}.${marker_name}"
     _log_notice "marker created: $marker_name"
 }
 
-# Error trap handler - logs error details to journald and log stream
-on_error() {
-    local line_num=$1
-    local exit_code=$?
-    local error_msg="Failed at line $line_num (exit: $exit_code): ${BASH_COMMAND}"
-    
-    _log_err "$error_msg"
-    
-    # Create error marker file with failure details
-    mkdir -p "$MARKER_DIR"
-    {
-        echo "timestamp=$(date -Iseconds)"
-        echo "line=$line_num"
-        echo "exit_code=$exit_code"
-        echo "command=${BASH_COMMAND}"
-    } > "$MARKER_DIR/.${SCRIPT_BASE}.error"
-    
-    # Also mark which step failed
-    mark "error-at-line-$line_num"
-}
-
-# Log successful completion and create sentinel marker file
 mark_done() {
     mkdir -p "$MARKER_DIR"
     touch "$MARKER_DIR/.${SCRIPT_BASE}"
     _log_notice "Completed: ${SCRIPT_BASE}"
 }
 
-# Check if already initialized - exit 0 if marker exists
+# -----------------------------------------------------------------------------
+# Error handling (safe, non-recursive)
+# -----------------------------------------------------------------------------
+on_error() {
+    local line_num="$1"
+    local exit_code="$?"
+    local cmd="${BASH_COMMAND:-unknown}"
+
+    # Disable ERR trap inside handler to avoid recursion
+    trap - ERR
+
+    _log_err "Failed at line $line_num (exit: $exit_code): $cmd"
+
+    mkdir -p "$MARKER_DIR"
+    {
+        echo "timestamp=$(date -Iseconds)"
+        echo "line=$line_num"
+        echo "exit_code=$exit_code"
+        echo "command=$cmd"
+    } > "$MARKER_DIR/.${SCRIPT_BASE}.error"
+
+    mark "error-at-line-$line_num"
+
+    exit "$exit_code"
+}
+
+# -----------------------------------------------------------------------------
+# Initialization guard
+# -----------------------------------------------------------------------------
 check_initialized() {
-    # Initialize log stream (named pipe)
-    if [ ! -p "$LOG_STREAM" ]; then
-        mkfifo "$LOG_STREAM" 2>/dev/null || true
-    fi
-    
+    _init_log_stream
+
     if [ -f "$MARKER_DIR/.${SCRIPT_BASE}" ]; then
-        _log "$SCRIPT_BASE" "user.notice" "Already initialized, skipping..."
+        _log_notice "Already initialized, skipping..."
         exit 0
     fi
 }
 
+# -----------------------------------------------------------------------------
 # Enable error trapping
+# -----------------------------------------------------------------------------
 trap 'on_error ${LINENO}' ERR
