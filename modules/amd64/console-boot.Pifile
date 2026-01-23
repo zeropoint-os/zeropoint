@@ -1,0 +1,15 @@
+# Console
+RUN systemctl enable getty@tty1
+RUN sed -i 's/console=ttyS0[^ ]*//g' /etc/default/grub
+RUN sed -i 's/GRUB_CMDLINE_LINUX="/GRUB_CMDLINE_LINUX="console=tty0 /' /etc/default/grub
+
+# Label the *image* root partition and switch root selector to LABEL
+# Only modify the root partition line in fstab (starts with PARTUUID or UUID and mounts to /)
+RUN bash -c 'ROOTDEV="$(findmnt -n -o SOURCE /)" && e2label "$ROOTDEV" root'
+RUN bash -c 'sed -i "/[[:space:]]\/[[:space:]]/s|^PARTUUID=[^[:space:]]*|LABEL=root|" /etc/fstab'
+
+RUN update-initramfs -u -k all
+RUN update-grub
+
+# Fix grub.cfg to use LABEL=root instead of PARTUUID (update-grub ignores GRUB_DEVICE)
+RUN bash -c 'sed -i "s|root=PARTUUID=[^ ]*|root=LABEL=root|g" /boot/grub/grub.cfg'

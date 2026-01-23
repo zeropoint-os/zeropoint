@@ -1,0 +1,30 @@
+{
+	"name": "zeropoint",
+	"build": {
+		"dockerfile": "../Dockerfile",
+		"context": ".."
+	},
+	"overrideCommand": true,
+	"customizations": {
+		"vscode": {
+			"extensions": [
+				"augustocdias.tasks-shell-input",
+				"zaaack.markdown-editor",
+				"ms-python.python",
+				"ms-python.debugpy"
+			],
+			"settings": {
+				"terminal.integrated.defaultProfile.linux": "bash"
+			}
+		}
+	},
+	"remoteUser": "vscode",
+	"runArgs": ["--privileged"],
+	"features": {
+		"ghcr.io/devcontainers/features/docker-in-docker:2": {},
+		"ghcr.io/nils-geistmann/devcontainers-features/create-remote-user:0": {
+			"passwordLessSudo": true,
+			"additionalGroups": ["docker"]
+		}
+	}
+}

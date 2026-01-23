@@ -1,0 +1,27 @@
+FROM https://cdimage.debian.org/images/cloud/bookworm/20251112-2294/debian-12-genericcloud-amd64-20251112-2294.tar.xz 1
+
+PUMP 500M
+
+# Phase 1: Base
+INCLUDE modules/amd64/base-system
+INCLUDE modules/amd64/console-boot
+
+# Phase 2: Utilities
+INCLUDE modules/common/install-utilities
+
+# Phase 3: Connectivity
+INCLUDE modules/common/ssh-config
+INCLUDE modules/common/network-config
+
+# Phase 4: PlatformTools
+INCLUDE modules/common/install-docker
+INCLUDE modules/common/install-terraform
+
+# Phase 5: Boot Services (auto-generated from boot-services.yaml)
+INCLUDE modules/services/boot-services
+
+# Phase 6: Agent
+INCLUDE modules/common/zeropoint-agent
+
+# Phase 8: Cleanup
+INCLUDE modules/common/cleanup

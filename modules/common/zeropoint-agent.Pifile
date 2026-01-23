@@ -1,0 +1,19 @@
+# Install zeropoint-agent binary specifically
+# The binary should be prepared at .build/zeropoint-agent by the build script  
+# See build-image.sh for the logic that handles USE_LOCAL_AGENT_BUILD
+INSTALL 755 .build/zeropoint-agent /usr/local/bin/zeropoint-agent
+
+# Install web folder if it exists in .build/web
+INSTALL .build/web /usr/local/bin/web
+
+# Install zeropoint-agent update script
+INSTALL 755 files/usr/local/bin/zeropoint-update-agent.sh /usr/local/bin/zeropoint-update-agent.sh
+
+# Install systemd services for agent updates and main agent
+INSTALL files/etc/systemd/system/zeropoint-update-agent.service /etc/systemd/system/zeropoint-update-agent.service
+INSTALL files/etc/systemd/system/zeropoint-agent.service /etc/systemd/system/zeropoint-agent.service
+
+# Enable avahi-daemon, agent update service and zeropoint-agent services
+RUN systemctl enable avahi-daemon
+RUN systemctl enable zeropoint-update-agent.service
+RUN systemctl enable zeropoint-agent

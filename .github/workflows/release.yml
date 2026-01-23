@@ -1,0 +1,99 @@
+name: Build and Release Images
+
+on:
+  release:
+    types: [created]
+    branches:
+      - main
+
+jobs:
+  build-and-release:
+    runs-on: ubuntu-latest
+    if: github.event.release.target_commitish == 'main'
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y python3-pip
+          pip3 install pyyaml --break-system-packages
+
+      - name: Download zeropoint-agent
+        run: |
+          mkdir -p .build
+          curl -fsSL "https://github.com/zeropoint-os/zeropoint-agent/releases/latest/download/zeropoint-agent-linux-amd64.tar.gz" -o .build/zeropoint-agent.tar.gz
+          
+          # Extract to a temporary directory to avoid naming conflicts
+          TEMP_DIR=".build/temp_extract"
+          mkdir -p "$TEMP_DIR"
+          tar -xzf .build/zeropoint-agent.tar.gz -C "$TEMP_DIR/"
+          rm .build/zeropoint-agent.tar.gz
+          
+          # Move files from the nested structure to build root
+          if [ -d "$TEMP_DIR/zeropoint-agent" ]; then
+            # Move the binary file
+            mv "$TEMP_DIR/zeropoint-agent/zeropoint-agent" .build/
+            # Move the web folder if it exists
+            if [ -d "$TEMP_DIR/zeropoint-agent/web" ]; then
+              mv "$TEMP_DIR/zeropoint-agent/web" .build/
+            fi
+          fi
+          
+          # Clean up temp directory
+          rm -rf "$TEMP_DIR"
+          
+          chmod +x .build/zeropoint-agent
+          .build/zeropoint-agent --version || echo "Agent ready"
+
+      - name: Generate unit files
+        run: python3 generate-unit-files.py
+
+      - name: Build AMD64 image
+        uses: aniongithub/pimod@0.31
+        with:
+          pifile: images/Amd64-Debian.Pifile
+          resolv: host
+
+      - name: Fix resolv.conf in image
+        run: |
+          IMAGE_FILE=$(find . -name "*.img" -type f | head -n 1)
+          if [ -n "$IMAGE_FILE" ]; then
+            # Mount the image and fix resolv.conf
+            sudo losetup -P /dev/loop10 "$IMAGE_FILE"
+            sudo mkdir -p /tmp/img_mount
+            sudo mount /dev/loop10p1 /tmp/img_mount
+            
+            # Replace resolv.conf with proper DNS servers
+            echo "nameserver 8.8.8.8" | sudo tee /tmp/img_mount/etc/resolv.conf
+            echo "nameserver 8.8.4.4" | sudo tee -a /tmp/img_mount/etc/resolv.conf
+            echo "nameserver 1.1.1.1" | sudo tee -a /tmp/img_mount/etc/resolv.conf
+            
+            sudo umount /tmp/img_mount
+            sudo losetup -d /dev/loop10
+            sudo rmdir /tmp/img_mount
+          fi
+
+      - name: Compress image
+        run: |
+          IMAGE_FILE=$(find . -name "*.img" -type f | head -n 1)
+          if [ -z "$IMAGE_FILE" ]; then
+            echo "No .img file found"
+            exit 1
+          fi
+          IMAGE_BASENAME=$(basename "$IMAGE_FILE" .img)
+          tar -czf "${IMAGE_BASENAME}.tar.gz" "$IMAGE_FILE"
+          echo "IMAGE_ARCHIVE=${IMAGE_BASENAME}.tar.gz" >> $GITHUB_ENV
+
+      - name: Upload to release
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ github.event.release.upload_url }}
+          asset_path: ${{ env.IMAGE_ARCHIVE }}
+          asset_name: ${{ env.IMAGE_ARCHIVE }}
+          asset_content_type: application/gzip
