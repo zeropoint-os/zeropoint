@@ -20,6 +20,9 @@
 	},
 	"remoteUser": "vscode",
 	"runArgs": ["--privileged"],
+	"mounts": [
+		"source=/dev,target=/dev,type=bind,consistency=consistent"
+	],
 	"features": {
 		"ghcr.io/devcontainers/features/docker-in-docker:2": {},
 		"ghcr.io/nils-geistmann/devcontainers-features/create-remote-user:0": {
