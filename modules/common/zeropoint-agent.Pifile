@@ -1,19 +1,20 @@
-# Install zeropoint-agent binary specifically
-# The binary should be prepared at .build/zeropoint-agent by the build script  
-# See build-image.sh for the logic that handles USE_LOCAL_AGENT_BUILD
-INSTALL 755 .build/zeropoint-agent /usr/local/bin/zeropoint-agent
+# Install the immutable Python agent release prepared by build-image.sh.
+RUN install -d -m 0755 /opt/zeropoint-agent/release
+INSTALL 644 .build/zeropoint-agent/zeropoint_agent-2.0.0-py3-none-any.whl /opt/zeropoint-agent/release/zeropoint_agent-2.0.0-py3-none-any.whl
+INSTALL 644 .build/zeropoint-agent/RELEASE.txt /opt/zeropoint-agent/release/RELEASE.txt
 
-# Install web folder if it exists in .build/web
-INSTALL .build/web /usr/local/bin/web
+# Isolate Python dependencies from the base OS. The generic cloud image can
+# report python3-venv installed while omitting ensurepip payloads, so reinstall
+# the versioned package before creating the environment.
+RUN apt-get install --reinstall -y python3.11-venv
+RUN python3 -m venv /opt/zeropoint-agent/venv
+RUN /opt/zeropoint-agent/venv/bin/pip install --no-cache-dir --upgrade pip setuptools wheel
+RUN /opt/zeropoint-agent/venv/bin/pip install --no-cache-dir /opt/zeropoint-agent/release/zeropoint_agent-2.0.0-py3-none-any.whl
 
-# Install zeropoint-agent update script
-INSTALL 755 files/usr/local/bin/zeropoint-update-agent.sh /usr/local/bin/zeropoint-update-agent.sh
-
-# Install systemd services for agent updates and main agent
-INSTALL files/etc/systemd/system/zeropoint-update-agent.service /etc/systemd/system/zeropoint-update-agent.service
+INSTALL 644 files/etc/zeropoint-agent.env /etc/zeropoint-agent.env
+INSTALL 755 files/usr/local/bin/zeropoint-init-agent /usr/local/bin/zeropoint-init-agent
 INSTALL files/etc/systemd/system/zeropoint-agent.service /etc/systemd/system/zeropoint-agent.service
 
-# Enable avahi-daemon, agent update service and zeropoint-agent services
-RUN systemctl enable avahi-daemon
-RUN systemctl enable zeropoint-update-agent.service
-RUN systemctl enable zeropoint-agent
+RUN install -d -m 0755 /var/lib/zeropoint/data /var/lib/zeropoint/data/modules /var/lib/zeropoint/modules /var/lib/zeropoint/logs
+RUN bash -c 'ZEROPOINT_ROOT_PATH=/var/lib/zeropoint ZP_AGENT_STATE_ROOT=/var/lib/zeropoint/data/modules ZP_MODULE_STORAGE=/var/lib/zeropoint/modules /usr/local/bin/zeropoint-init-agent'
+RUN systemctl enable zeropoint-agent.service
