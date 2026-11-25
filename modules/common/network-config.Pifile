@@ -1,10 +1,11 @@
-# Configure network - DHCP on all ethernet interfaces
+# Use systemd-networkd and DHCP on conventional wired interface names.
 RUN bash -c 'cat > /etc/systemd/network/20-wired.network << EOF
 [Match]
-Name=en*
+Name=en* eth*
 
 [Network]
 DHCP=yes
+IPv6AcceptRA=yes
 EOF'
 RUN systemctl enable systemd-networkd systemd-resolved
 RUN systemctl disable systemd-networkd-wait-online.service

@@ -1,0 +1,25 @@
+#!/opt/zeropoint-agent/venv/bin/python
+"""Create persistent directories and migrate the SQLite graph schema."""
+
+import os
+import sqlite3
+from pathlib import Path
+
+from zeropoint_agent.sqlite_store import SQLiteGraphStore
+
+root = Path(os.environ.get("ZEROPOINT_ROOT_PATH", "/var/lib/zeropoint"))
+data_dir = root / "data"
+for path in (data_dir, data_dir / "modules", root / "modules", root / "logs"):
+    path.mkdir(parents=True, exist_ok=True)
+
+state_db = data_dir / "state.db"
+store = SQLiteGraphStore(str(state_db))
+store.close()
+
+with sqlite3.connect(state_db) as connection:
+    node_count = connection.execute("SELECT COUNT(*) FROM nodes").fetchone()[0]
+
+if node_count == 0:
+    print(f"Initialized ZeroPoint graph schema at {state_db}; roots seed on service startup")
+else:
+    print(f"Preserving ZeroPoint graph with {node_count} nodes at {state_db}")

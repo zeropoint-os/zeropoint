@@ -1,6 +1,8 @@
 FROM https://cdimage.debian.org/images/cloud/bookworm/20251112-2294/debian-12-genericcloud-amd64-20251112-2294.tar.xz 1
 
-PUMP 500M
+# Space for the physical-hardware kernel, Docker, Terraform, Python runtime,
+# agent dependencies, and first-boot growth headroom.
+PUMP 2G
 
 # Phase 1: Base
 INCLUDE modules/amd64/base-system
@@ -13,15 +15,15 @@ INCLUDE modules/common/install-utilities
 INCLUDE modules/common/ssh-config
 INCLUDE modules/common/network-config
 
-# Phase 4: PlatformTools
+# Phase 4: Platform tools
 INCLUDE modules/common/install-docker
 INCLUDE modules/common/install-terraform
 
-# Phase 5: Boot Services (auto-generated from boot-services.yaml)
+# Phase 5: Boot services (auto-generated from boot-services.yaml)
 INCLUDE modules/services/boot-services
 
-# Phase 6: Agent
+# Phase 6: Python agent
 INCLUDE modules/common/zeropoint-agent
 
-# Phase 8: Cleanup
+# Phase 7: Cleanup
 INCLUDE modules/common/cleanup
